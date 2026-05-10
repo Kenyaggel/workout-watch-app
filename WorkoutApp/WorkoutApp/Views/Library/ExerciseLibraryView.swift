@@ -13,33 +13,43 @@ struct ExerciseLibraryView: View {
     var body: some View {
         List {
             ForEach(exercises) { exercise in
-                Button {
-                    if isPickMode {
+                if isPickMode {
+                    Button {
                         onPick?(exercise)
                         dismiss()
-                    }
-                } label: {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(exercise.name)
-                                .foregroundStyle(.primary)
-                            Text(exercise.kind.displayName)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        if isPickMode {
+                    } label: {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(exercise.name)
+                                    .foregroundStyle(.primary)
+                                Text(exercise.kind.displayName)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
                             Image(systemName: "chevron.right")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
                     }
+                    .buttonStyle(.plain)
+                } else {
+                    NavigationLink(value: exercise) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(exercise.name)
+                            Text(exercise.kind.displayName)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
-                .buttonStyle(.plain)
             }
             .onDelete(perform: isPickMode ? nil : deleteExercises)
         }
         .navigationTitle("Exercises")
+        .navigationDestination(for: Exercise.self) { exercise in
+            ExerciseDetailView(exercise: exercise)
+        }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {

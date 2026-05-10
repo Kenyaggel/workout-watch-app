@@ -32,6 +32,9 @@ struct TemplateDetailView: View {
             PlannedExerciseDetailView(plannedExercise: pe)
         }
         .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                EditButton()
+            }
             ToolbarItem(placement: .primaryAction) {
                 Button {
                     showExercisePicker = true

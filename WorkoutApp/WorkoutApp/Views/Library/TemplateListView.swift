@@ -10,19 +10,22 @@ struct TemplateListView: View {
     var body: some View {
         List {
             ForEach(templates) { template in
-                NavigationLink(value: template) {
+                Button {
+                    navigateTo = template
+                } label: {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(template.name)
                         Text("\(template.plannedExercises.count) exercises")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
+                    .foregroundStyle(.primary)
                 }
             }
             .onDelete(perform: deleteTemplates)
         }
         .navigationTitle("Library")
-        .navigationDestination(for: WorkoutTemplate.self) { template in
+        .navigationDestination(item: $navigateTo) { template in
             TemplateDetailView(template: template)
         }
         .toolbar {
@@ -35,9 +38,6 @@ struct TemplateListView: View {
                     Image(systemName: "plus")
                 }
             }
-        }
-        .navigationDestination(item: $navigateTo) { template in
-            TemplateDetailView(template: template)
         }
     }
 

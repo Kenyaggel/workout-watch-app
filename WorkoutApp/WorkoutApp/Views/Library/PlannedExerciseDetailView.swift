@@ -20,6 +20,9 @@ struct PlannedExerciseDetailView: View {
         }
         .navigationTitle(plannedExercise.exercise?.name ?? "Exercise")
         .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                EditButton()
+            }
             ToolbarItem(placement: .primaryAction) {
                 Button {
                     let ps = PlannedSet(orderIndex: plannedExercise.orderedSets.count)
@@ -119,7 +122,7 @@ private struct OptionalDoubleField: View {
             .multilineTextAlignment(.trailing)
             .frame(width: 80)
             .onAppear {
-                if let v = value { text = String(v) }
+                if let v = value { text = String(format: "%.4g", v) }
             }
             .onChange(of: text) { _, newValue in
                 value = Double(newValue)
