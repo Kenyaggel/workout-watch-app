@@ -16,6 +16,7 @@ struct ExerciseLibraryView: View {
                 Button {
                     if isPickMode {
                         onPick?(exercise)
+                        dismiss()
                     }
                 } label: {
                     HStack {
