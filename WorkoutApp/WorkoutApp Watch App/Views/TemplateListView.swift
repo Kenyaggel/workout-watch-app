@@ -35,14 +35,3 @@ struct TemplateListView: View {
         }
     }
 }
-
-extension SessionPlan: Identifiable, Hashable {
-    public var id: String { templateName + "-" + String(exercises.count) }
-    public func hash(into hasher: inout Hasher) {
-        hasher.combine(templateName)
-        for ex in exercises {
-            hasher.combine(ex.name)
-            hasher.combine(ex.sets.count)
-        }
-    }
-}

@@ -1,7 +1,7 @@
 import Foundation
 
-public struct SessionPlan: Equatable, Sendable {
-    public struct Exercise: Equatable, Sendable {
+public struct SessionPlan: Equatable, Hashable, Identifiable, Sendable {
+    public struct Exercise: Equatable, Hashable, Sendable {
         public let name: String
         public let kind: ExerciseKind
         public let sets: [Set]
@@ -13,7 +13,7 @@ public struct SessionPlan: Equatable, Sendable {
         }
     }
 
-    public struct Set: Equatable, Sendable {
+    public struct Set: Equatable, Hashable, Sendable {
         public let targetWeightKg: Double?
         public let targetReps: Int?
         public let targetDurationSec: Int?
@@ -46,6 +46,8 @@ public struct SessionPlan: Equatable, Sendable {
     public var isEmpty: Bool {
         exercises.allSatisfy { $0.sets.isEmpty }
     }
+
+    public var id: String { templateName + "-" + String(exercises.count) }
 }
 
 public struct SetCursor: Equatable, Sendable, Hashable {

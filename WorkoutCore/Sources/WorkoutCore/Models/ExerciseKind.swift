@@ -1,6 +1,6 @@
 import Foundation
 
-public enum ExerciseKind: String, Codable, CaseIterable, Sendable {
+public enum ExerciseKind: String, Codable, CaseIterable, Hashable, Sendable {
     case reps
     case timed
     case distance
