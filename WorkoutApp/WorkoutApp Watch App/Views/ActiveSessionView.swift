@@ -34,7 +34,9 @@ struct ActiveSessionView: View {
     private func phaseView(engine: SessionEngine) -> some View {
         switch engine.phase {
         case .idle:
-            IdleStartView { engine.start() }
+            PlanSummaryView(plan: engine.plan) {
+                engine.start()
+            }
         case let .inSet(cursor, startedAt):
             InSetView(
                 engine: engine,
@@ -84,21 +86,6 @@ struct ActiveSessionView: View {
         engine?.endWorkout()
         _ = try? await lifecycle.endWorkout(at: Date())
         dismiss()
-    }
-}
-
-private struct IdleStartView: View {
-    let onStart: () -> Void
-    var body: some View {
-        VStack(spacing: 12) {
-            Text("Ready").font(.title3)
-            Button(action: onStart) {
-                Text("Start").font(.headline).frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(.green)
-        }
-        .padding()
     }
 }
 

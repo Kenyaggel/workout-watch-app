@@ -33,11 +33,28 @@ final class SessionEngineTests: XCTestCase {
 
     // MARK: - Tests
 
-    func testStartFromIdleEntersFirstSet() {
+    func testStartFromIdleEntersPrepForFirstSet() {
         var t = Date(timeIntervalSince1970: 0)
         let (engine, rec) = makeEngine { t }
 
         engine.start()
+
+        if case let .prep(startedAt, cursor) = engine.phase {
+            XCTAssertEqual(cursor, SetCursor(exerciseIndex: 0, setIndex: 0))
+            XCTAssertEqual(startedAt, t)
+        } else {
+            XCTFail("Expected prep, got \(engine.phase)")
+        }
+        XCTAssertEqual(rec.startedAt, t)
+    }
+
+    func testStartNextExerciseFromInitialPrepEntersFirstSet() {
+        var t = Date(timeIntervalSince1970: 0)
+        let (engine, _) = makeEngine { t }
+
+        engine.start()
+        t = t.addingTimeInterval(10)
+        engine.startNextExercise()
 
         if case let .inSet(cursor, startedAt) = engine.phase {
             XCTAssertEqual(cursor, SetCursor(exerciseIndex: 0, setIndex: 0))
@@ -45,7 +62,6 @@ final class SessionEngineTests: XCTestCase {
         } else {
             XCTFail("Expected inSet, got \(engine.phase)")
         }
-        XCTAssertEqual(rec.startedAt, t)
     }
 
     func testCompleteSetWithMoreSetsInExerciseEntersRest() {
@@ -53,6 +69,7 @@ final class SessionEngineTests: XCTestCase {
         let plan = makePlan(restSec: 90)
         let (engine, rec) = makeEngine(plan: plan) { t }
         engine.start()
+        engine.startNextExercise()
 
         t = t.addingTimeInterval(30)
         engine.completeSet(weightKg: 50, reps: 5, rpe: 7)
@@ -72,6 +89,7 @@ final class SessionEngineTests: XCTestCase {
         var t = Date(timeIntervalSince1970: 0)
         let (engine, _) = makeEngine { t }
         engine.start()
+        engine.startNextExercise()
 
         // Complete first set → rest
         t = t.addingTimeInterval(30)
@@ -95,6 +113,7 @@ final class SessionEngineTests: XCTestCase {
         var t = Date(timeIntervalSince1970: 0)
         let (engine, _) = makeEngine { t }
         engine.start()
+        engine.startNextExercise()
         t = t.addingTimeInterval(10); engine.completeSet()
         t = t.addingTimeInterval(10); engine.skipRest()
         t = t.addingTimeInterval(10); engine.completeSet() // → prep
@@ -111,6 +130,7 @@ final class SessionEngineTests: XCTestCase {
         var t = Date(timeIntervalSince1970: 0)
         let (engine, rec) = makeEngine { t }
         engine.start()
+        engine.startNextExercise()
         t = t.addingTimeInterval(10); engine.completeSet() // ex0 set0 done → rest
         t = t.addingTimeInterval(10); engine.skipRest()    // → ex0 set1
         t = t.addingTimeInterval(10); engine.completeSet() // ex0 set1 done → prep
@@ -130,6 +150,7 @@ final class SessionEngineTests: XCTestCase {
         var t = Date(timeIntervalSince1970: 0)
         let (engine, _) = makeEngine { t }
         engine.start()
+        engine.startNextExercise()
         t = t.addingTimeInterval(30); engine.completeSet() // → rest
         t = t.addingTimeInterval(5); engine.skipRest()
 
@@ -145,6 +166,7 @@ final class SessionEngineTests: XCTestCase {
         let plan = makePlan(restSec: 60)
         let (engine, _) = makeEngine(plan: plan) { t }
         engine.start()
+        engine.startNextExercise()
         t = t.addingTimeInterval(30); engine.completeSet() // rest until t+60
 
         // Before deadline — should be no-op
@@ -168,6 +190,7 @@ final class SessionEngineTests: XCTestCase {
         var t = Date(timeIntervalSince1970: 0)
         let (engine, rec) = makeEngine { t }
         engine.start()
+        engine.startNextExercise()
         t = t.addingTimeInterval(10); engine.completeSet() // → rest
         t = t.addingTimeInterval(5); engine.endWorkout()
 
@@ -204,8 +227,8 @@ final class SessionEngineTests: XCTestCase {
         let (engine, _) = makeEngine { t }
         engine.start()
         engine.skipRest() // in-set, should be no-op
-        if case .inSet = engine.phase { } else {
-            XCTFail("skipRest from inSet should be no-op")
+        if case .prep = engine.phase { } else {
+            XCTFail("skipRest from prep should be no-op")
         }
     }
 

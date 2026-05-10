@@ -12,6 +12,13 @@ struct RestView: View {
         return TimeInterval(set.restSec)
     }
 
+    private var nextTargetText: String? {
+        guard case let .rest(_, _, nextCursor) = engine.phase,
+              let exercise = engine.plan.exercise(at: nextCursor),
+              let set = engine.plan.set(at: nextCursor) else { return nil }
+        return plannedTargetText(for: set, kind: exercise.kind)
+    }
+
     var body: some View {
         TimelineView(.periodic(from: .now, by: 0.25)) { ctx in
             let remaining = max(0, endsAt.timeIntervalSince(ctx.date))
@@ -46,12 +53,26 @@ struct RestView: View {
                 Button {
                     engine.skipRest()
                 } label: {
-                    Text("Skip").font(.caption).frame(maxWidth: .infinity)
+                    Text("Skip")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 18)
                 }
-                .buttonStyle(.bordered)
-                .tint(.white)
-                .padding(.horizontal)
-                .padding(.bottom, 4)
+                .buttonStyle(.plain)
+                .padding(.bottom, 2)
+            }
+            .overlay(alignment: .top) {
+                if let nextTargetText {
+                    Text("Next: \(nextTargetText)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                        .padding(.top, 8)
+                        .padding(.horizontal, 16)
+                }
             }
         }
     }

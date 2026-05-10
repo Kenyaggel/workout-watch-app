@@ -54,7 +54,7 @@ public final class SessionEngine {
         }
         let now = nowProvider()
         recorder?.sessionStarted(at: now, plan: plan)
-        enterInSet(cursor: first, at: now)
+        enterPrep(nextCursor: first, at: now)
     }
 
     public func completeSet(

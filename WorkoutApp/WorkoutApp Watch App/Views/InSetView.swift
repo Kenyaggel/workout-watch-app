@@ -167,9 +167,12 @@ struct InSetView: View {
         range: ClosedRange<Int>,
         onChange: @escaping (Int) -> Void
     ) -> some View {
-        HStack(spacing: 4) {
-            Text("\(label): \(value)")
-                .font(.caption)
+        HStack(spacing: 8) {
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            Text("\(value)")
+                .font(.system(size: 28, weight: .semibold, design: .rounded))
                 .monospacedDigit()
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
@@ -185,6 +188,7 @@ struct InSetView: View {
                 if next != value { onChange(next) }
             }
         }
+        .padding(.vertical, 6)
     }
 
     private func stepperButton(
@@ -194,8 +198,8 @@ struct InSetView: View {
     ) -> some View {
         Button(action: action) {
             Image(systemName: systemImage)
-                .font(.caption.bold())
-                .frame(width: 28, height: 24)
+                .font(.body.weight(.bold))
+                .frame(width: 36, height: 34)
                 .background(
                     RoundedRectangle(cornerRadius: 6)
                         .fill(Color.white.opacity(enabled ? 0.18 : 0.06))

@@ -17,11 +17,11 @@ Where v1 ended and where v2 takes us. Use this as the working plan; tick items o
 
 These belong at the top of v2 because they're already half-done.
 
-1. **Bigger in-set editing controls** — reps editing is fine as +/- buttons and does not need Digital Crown editing, but the reps control should be sized up. RPE should be sized up too so both are easier to read and tap mid-workout.
-2. **Rest skip button styling** — the visible gray button capsule around the `Skip` label is awkward and overlaps the timer. Keep the skip action, but make the button background invisible so the timer stays visually clean.
-3. **Up next details** — add the planned weight and reps to the Up next window so the lifter can prepare before the next set or exercise.
-4. **Workout start summary** — after starting a workout, show a summary of the whole plan before the first set: exercises, weights, reps, and set structure.
-5. **Exercise transition prep** — show an Up next window before every exercise, including the first exercise, not only between exercises later in the session.
+- [] **Bigger in-set editing controls** — reps editing is fine as +/- buttons and does not need Digital Crown editing, but the reps control should be sized up. RPE should be sized up too so both are easier to read and tap mid-workout.
+- [] **Rest skip button styling** — the visible gray button capsule around the `Skip` label is awkward and overlaps the timer. Keep the skip action, but make the button background invisible so the timer stays visually clean.
+- [x] **Up next details** — add the planned weight and reps to the Up next window so the lifter can prepare before the next set or exercise.
+- [x] **Workout start summary** — after starting a workout, show a summary of the whole plan before the first set: exercises, weights, reps, and set structure.
+- [x] **Exercise transition prep** — show an Up next window before every exercise, including the first exercise, not only between exercises later in the session.
 
 ## v2 themes
 
