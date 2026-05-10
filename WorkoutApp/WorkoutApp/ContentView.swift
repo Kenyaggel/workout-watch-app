@@ -1,16 +1,15 @@
 import SwiftUI
+import WorkoutCore
 
 struct ContentView: View {
     var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "applewatch")
-                .font(.system(size: 56))
-                .foregroundStyle(.tint)
-            Text("Workout").font(.largeTitle).bold()
-            Text("Manage your workouts from your Apple Watch.")
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal)
+        TabView {
+            NavigationStack { TemplateListView() }
+                .tabItem { Label("Library", systemImage: "books.vertical") }
+            NavigationStack { SessionListView() }
+                .tabItem { Label("History", systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90") }
+            NavigationStack { AnalyticsDashboardView() }
+                .tabItem { Label("Analytics", systemImage: "chart.line.uptrend.xyaxis") }
         }
     }
 }
