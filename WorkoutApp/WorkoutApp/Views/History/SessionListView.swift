@@ -42,7 +42,7 @@ private struct SessionRowView: View {
                 Spacer()
                 durationLabel
                     .font(.subheadline)
-                    .foregroundStyle(session.isFinished ? .primary : .orange)
+                    .foregroundStyle(session.isFinished ? AnyShapeStyle(.primary) : AnyShapeStyle(Color.orange))
             }
             HStack {
                 Text(formattedDate(session.startedAt))

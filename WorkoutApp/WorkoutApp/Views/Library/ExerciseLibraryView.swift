@@ -13,38 +13,14 @@ struct ExerciseLibraryView: View {
     var body: some View {
         List {
             ForEach(exercises) { exercise in
-                if isPickMode {
-                    Button {
-                        onPick?(exercise)
-                        dismiss()
-                    } label: {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(exercise.name)
-                                    .foregroundStyle(.primary)
-                                Text(exercise.kind.displayName)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .buttonStyle(.plain)
-                } else {
-                    NavigationLink(value: exercise) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(exercise.name)
-                            Text(exercise.kind.displayName)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
+                ExerciseRow(exercise: exercise, isPickMode: isPickMode) {
+                    onPick?(exercise)
+                    dismiss()
                 }
             }
-            .onDelete(perform: isPickMode ? nil : deleteExercises)
+            .onDelete { offsets in
+                if !isPickMode { deleteExercises(at: offsets) }
+            }
         }
         .navigationTitle("Exercises")
         .navigationDestination(for: Exercise.self) { exercise in
@@ -58,11 +34,6 @@ struct ExerciseLibraryView: View {
                     Image(systemName: "plus")
                 }
             }
-            if isPickMode {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-            }
         }
         .sheet(isPresented: $showCreateExercise) {
             NavigationStack {
@@ -74,6 +45,41 @@ struct ExerciseLibraryView: View {
     private func deleteExercises(at offsets: IndexSet) {
         for index in offsets {
             modelContext.delete(exercises[index])
+        }
+    }
+}
+
+private struct ExerciseRow: View {
+    let exercise: Exercise
+    let isPickMode: Bool
+    let onPick: () -> Void
+
+    var body: some View {
+        if isPickMode {
+            Button(action: onPick) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(exercise.name).foregroundStyle(.primary)
+                        Text(exercise.kind.displayName)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .buttonStyle(.plain)
+        } else {
+            NavigationLink(value: exercise) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(exercise.name)
+                    Text(exercise.kind.displayName)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
     }
 }

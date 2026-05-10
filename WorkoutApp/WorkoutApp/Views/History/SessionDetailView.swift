@@ -17,7 +17,13 @@ struct SessionDetailView: View {
             }
         }
         .navigationTitle(session.templateName)
-        .navigationSubtitle(subtitleText)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text(subtitleText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
     }
 
     private var subtitleText: String {
