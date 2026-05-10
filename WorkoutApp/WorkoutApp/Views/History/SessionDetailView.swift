@@ -161,24 +161,8 @@ private struct SetRowView: View {
     }
 }
 
-// MARK: - Safe subscript
-
-extension Array {
-    subscript(safe index: Int) -> Element? {
-        indices.contains(index) ? self[index] : nil
-    }
-}
-
 // MARK: - Helpers
 
 private func formattedDate(_ date: Date) -> String {
-    let formatter = DateFormatter()
-    formatter.dateFormat = "EEE, MMM d"
-    return formatter.string(from: date)
-}
-
-private func formatDuration(_ start: Date, _ end: Date) -> String {
-    let minutes = Int(end.timeIntervalSince(start) / 60)
-    if minutes < 60 { return "\(minutes)m" }
-    return "\(minutes / 60)h \(minutes % 60)m"
+    date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())
 }

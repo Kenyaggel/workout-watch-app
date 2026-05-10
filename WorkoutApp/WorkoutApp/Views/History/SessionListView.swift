@@ -57,23 +57,15 @@ private struct SessionRowView: View {
         .padding(.vertical, 2)
     }
 
-    private var durationLabel: some View {
+    @ViewBuilder private var durationLabel: some View {
         if let end = session.endedAt {
-            return Text(formatDuration(session.startedAt, end))
+            Text(formatDuration(session.startedAt, end))
         } else {
-            return Text("In progress")
+            Text("In progress")
         }
     }
 
     private func formattedDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "EEE, MMM d"
-        return formatter.string(from: date)
+        date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())
     }
-}
-
-private func formatDuration(_ start: Date, _ end: Date) -> String {
-    let minutes = Int(end.timeIntervalSince(start) / 60)
-    if minutes < 60 { return "\(minutes)m" }
-    return "\(minutes / 60)h \(minutes % 60)m"
 }
