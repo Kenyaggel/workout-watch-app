@@ -32,6 +32,9 @@ PreviewAssets.xcassets/
 # Claude Code local settings (machine-specific)
 .claude/
 
+# Superpowers brainstorming sessions
+.superpowers/
+
 # Instruments
 *.trace
 
