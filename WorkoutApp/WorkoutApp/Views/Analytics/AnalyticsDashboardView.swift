@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 import Charts
 import WorkoutCore
 
@@ -23,16 +24,16 @@ struct AnalyticsDashboardView: View {
             }
         }
         .navigationTitle("Analytics")
-        .task(id: selectedExerciseName) {
+        .task {
             let engine = AnalyticsEngine(modelContext: modelContext)
             weeklyVolumes = engine.weeklyVolume(last: 12)
             frequencyPoints = engine.workoutFrequency(last: 3)
-            if !selectedExerciseName.isEmpty {
-                progressionPoints = engine.exerciseProgression(
-                    exerciseName: selectedExerciseName, last: 20)
-                e1rmPoints = engine.estimated1RM(
-                    exerciseName: selectedExerciseName, last: 20)
-            }
+        }
+        .task(id: selectedExerciseName) {
+            guard !selectedExerciseName.isEmpty else { return }
+            let engine = AnalyticsEngine(modelContext: modelContext)
+            progressionPoints = engine.exerciseProgression(exerciseName: selectedExerciseName, last: 20)
+            e1rmPoints = engine.estimated1RM(exerciseName: selectedExerciseName, last: 20)
         }
         .onChange(of: exercises) { _, newValue in
             if selectedExerciseName.isEmpty, let first = newValue.first {
@@ -122,7 +123,7 @@ struct AnalyticsDashboardView: View {
                     .padding(.horizontal)
             } else {
                 Picker("Exercise", selection: $selectedExerciseName) {
-                    ForEach(exercises, id: \.name) { exercise in
+                    ForEach(exercises, id: \.persistentModelID) { exercise in
                         Text(exercise.name).tag(exercise.name)
                     }
                 }
@@ -224,4 +225,10 @@ struct AnalyticsDashboardView: View {
     NavigationStack {
         AnalyticsDashboardView()
     }
+    .modelContainer(
+        try! ModelContainer(
+            for: Schema(versionedSchema: WorkoutSchemaV1.self),
+            configurations: [ModelConfiguration(isStoredInMemoryOnly: true)]
+        )
+    )
 }
