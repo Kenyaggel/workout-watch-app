@@ -16,6 +16,7 @@ struct InSetView: View {
     /// `false` → ScrollView owns the crown; weight row appears locked.
     /// `true`  → weight row is highlighted and owns the crown.
     @State private var weightActive: Bool = false
+    @State private var ignoreNextContainerTap: Bool = false
     @FocusState private var weightHasFocus: Bool
 
     private var set: SessionPlan.Set? { engine.plan.set(at: cursor) }
@@ -67,6 +68,14 @@ struct InSetView: View {
         .onChange(of: weightHasFocus) { _, hasFocus in
             if !hasFocus { weightActive = false }
         }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if ignoreNextContainerTap {
+                ignoreNextContainerTap = false
+            } else if weightActive {
+                releaseWeight()
+            }
+        }
     }
 
     private func releaseWeight() {
@@ -75,8 +84,17 @@ struct InSetView: View {
     }
 
     private func toggleWeight() {
-        weightActive.toggle()
-        weightHasFocus = weightActive
+        if weightActive {
+            releaseWeight()
+        } else {
+            ignoreNextContainerTap = true
+            weightActive = true
+            Task { @MainActor in
+                await Task.yield()
+                weightHasFocus = true
+                ignoreNextContainerTap = false
+            }
+        }
         WKInterfaceDevice.current().play(.click)
     }
 
@@ -122,6 +140,7 @@ struct InSetView: View {
             )
         }
         .buttonStyle(.plain)
+        .focusable(weightActive)
         .focused($weightHasFocus)
         .digitalCrownRotation(
             $weightKg,
