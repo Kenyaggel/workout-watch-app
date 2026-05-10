@@ -145,7 +145,7 @@ struct InSetView: View {
         .digitalCrownRotation(
             $weightKg,
             from: 0, through: 500, by: 0.5,
-            sensitivity: .medium,
+            sensitivity: .low,
             isContinuous: false,
             isHapticFeedbackEnabled: true
         )
