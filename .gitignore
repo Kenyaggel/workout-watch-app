@@ -1,0 +1,41 @@
+# Xcode
+build/
+DerivedData/
+*.xcuserdata/
+*.xcscmblueprint
+*.moved-aside
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+xcuserdata/
+*.xccheckout
+*.xcsettings
+
+# Swift Package Manager
+.build/
+.swiftpm/
+WorkoutCore/.build/
+WorkoutCore/.swiftpm/
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Previews
+PreviewAssets.xcassets/
+
+# Claude Code local settings (machine-specific)
+.claude/
+
+# Instruments
+*.trace
+
+# TestFlight / archives
+*.ipa
+*.dSYM.zip
+*.dSYM
