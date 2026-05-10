@@ -217,6 +217,25 @@ final class AnalyticsEngineTests: XCTestCase {
         }
     }
 
+    // MARK: - exerciseProgression edge cases
+
+    func testExerciseProgressionReturnsEmptyForNonExistentExercise() throws {
+        let ctx = try makeContext()
+        // Insert a set for a different exercise so the store is not totally empty.
+        let session = WorkoutSession(startedAt: Date(), templateName: "Push")
+        ctx.insert(session)
+        let s = PerformedSet(orderIndex: 0, exerciseName: "Bench Press",
+                             exerciseIndex: 0, setIndex: 0,
+                             weightKg: 100, reps: 5, completedAt: Date())
+        s.session = session
+        ctx.insert(s)
+        try ctx.save()
+
+        let engine = AnalyticsEngine(modelContext: ctx)
+        let points = engine.exerciseProgression(exerciseName: "NonExistentExercise", last: 10)
+        XCTAssertEqual(points, [], "Querying for a non-existent exercise should return an empty array")
+    }
+
     // MARK: - estimated1RM
 
     func testEstimated1RMEpleyFormula() throws {

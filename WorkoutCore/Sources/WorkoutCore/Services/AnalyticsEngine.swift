@@ -10,12 +10,17 @@ public struct AnalyticsEngine {
 
     // MARK: - Weekly Volume
 
-    /// Fetch all PerformedSets with completedAt in the last N weeks, group by calendar week
-    /// (Monday start), sum weight×reps per week, return sorted ascending by weekStart.
+    /// Fetch all PerformedSets with completedAt in the last N calendar weeks, group by calendar
+    /// week (ISO 8601 Monday start), sum weight×reps per week, return sorted ascending by weekStart.
     public func weeklyVolume(last weeks: Int) -> [WeeklyVolume] {
-        let cal = Calendar.current
+        var isoCal = Calendar(identifier: .iso8601)
+        isoCal.locale = Locale(identifier: "en_US_POSIX")
+        let cal = isoCal
         let now = Date()
-        guard let rangeStart = cal.date(byAdding: .weekOfYear, value: -weeks, to: now) else {
+        // Snap to the start of the current ISO week so we don't split weeks mid-day.
+        guard let thisWeekStart = cal.dateInterval(of: .weekOfYear, for: now)?.start,
+              let rangeStart = cal.date(byAdding: .weekOfYear, value: -weeks, to: thisWeekStart)
+        else {
             return []
         }
 
@@ -45,17 +50,25 @@ public struct AnalyticsEngine {
     /// return last N sessions sorted ascending by sessionDate.
     public func exerciseProgression(exerciseName: String, last sessions: Int) -> [ExerciseDataPoint] {
         let cal = Calendar.current
+        let now = Date()
+        // Conservative date lower-bound: 60 days per requested session keeps the fetch bounded
+        // while virtually never excluding real data.
+        let conservativeDaysBack = sessions * 60
+        guard let rangeStart = cal.date(byAdding: .day, value: -conservativeDaysBack, to: now) else {
+            return []
+        }
 
         let descriptor = FetchDescriptor<PerformedSet>(
             predicate: #Predicate {
                 $0.exerciseName == exerciseName &&
                 $0.weightKg != nil &&
-                $0.reps != nil
+                $0.reps != nil &&
+                $0.completedAt >= rangeStart
             }
         )
         let sets = (try? modelContext.fetch(descriptor)) ?? []
 
-        // Filter reps > 0 in Swift (SwiftData #Predicate has limited comparisons)
+        // SwiftData #Predicate cannot express Int? > 0 comparisons — filter in Swift
         let filtered = sets.filter { ($0.reps ?? 0) > 0 }
 
         // Group by session day using session.startedAt if available, else completedAt
@@ -86,7 +99,10 @@ public struct AnalyticsEngine {
     public func workoutFrequency(last months: Int) -> [FrequencyPoint] {
         let cal = Calendar.current
         let now = Date()
-        guard let rangeStart = cal.date(byAdding: .month, value: -months, to: now) else {
+        // Snap to the start of the current month so we don't split months mid-day.
+        guard let thisMonthStart = cal.dateInterval(of: .month, for: now)?.start,
+              let rangeStart = cal.date(byAdding: .month, value: -months, to: thisMonthStart)
+        else {
             return []
         }
 
@@ -115,16 +131,24 @@ public struct AnalyticsEngine {
     /// take max e1RM per session, return last N sessions sorted ascending.
     public func estimated1RM(exerciseName: String, last sessions: Int) -> [E1RMDataPoint] {
         let cal = Calendar.current
+        let now = Date()
+        // Conservative date lower-bound: 60 days per requested session keeps the fetch bounded.
+        let conservativeDaysBack = sessions * 60
+        guard let rangeStart = cal.date(byAdding: .day, value: -conservativeDaysBack, to: now) else {
+            return []
+        }
 
         let descriptor = FetchDescriptor<PerformedSet>(
             predicate: #Predicate {
                 $0.exerciseName == exerciseName &&
                 $0.weightKg != nil &&
-                $0.reps != nil
+                $0.reps != nil &&
+                $0.completedAt >= rangeStart
             }
         )
         let sets = (try? modelContext.fetch(descriptor)) ?? []
 
+        // SwiftData #Predicate cannot express Int? > 0 comparisons — filter in Swift
         let filtered = sets.filter { ($0.reps ?? 0) > 0 }
 
         var byDay: [Date: Double] = [:]

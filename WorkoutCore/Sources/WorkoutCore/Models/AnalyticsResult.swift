@@ -1,6 +1,6 @@
 import Foundation
 
-public struct WeeklyVolume {
+public struct WeeklyVolume: Sendable, Equatable {
     public let weekStart: Date
     public let totalVolumeKg: Double
 
@@ -10,7 +10,7 @@ public struct WeeklyVolume {
     }
 }
 
-public struct ExerciseDataPoint {
+public struct ExerciseDataPoint: Sendable, Equatable {
     public let sessionDate: Date
     public let maxWeightKg: Double
     public let totalVolumeKg: Double
@@ -22,7 +22,7 @@ public struct ExerciseDataPoint {
     }
 }
 
-public struct E1RMDataPoint {
+public struct E1RMDataPoint: Sendable, Equatable {
     public let sessionDate: Date
     public let estimatedMax: Double
 
@@ -32,7 +32,7 @@ public struct E1RMDataPoint {
     }
 }
 
-public struct FrequencyPoint {
+public struct FrequencyPoint: Sendable, Equatable {
     public let weekStart: Date
     public let sessionCount: Int
 
