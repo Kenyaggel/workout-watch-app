@@ -5,10 +5,15 @@ import WorkoutCore
 @main
 struct WorkoutAppApp: App {
     let container: ModelContainer
+    @StateObject private var watchConnectivity: WatchConnectivityManager
 
     init() {
         do {
-            container = try WorkoutModelContainer.makeShared()
+            let container = try WorkoutModelContainer.makeShared()
+            self.container = container
+            _watchConnectivity = StateObject(
+                wrappedValue: WatchConnectivityManager(modelContainer: container)
+            )
         } catch {
             fatalError("Failed to initialize ModelContainer: \(error)")
         }
@@ -17,6 +22,10 @@ struct WorkoutAppApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(watchConnectivity)
+                .task {
+                    watchConnectivity.activate()
+                }
         }
         .modelContainer(container)
     }

@@ -61,6 +61,7 @@ Three layers, deliberately separated:
 - `PlannedExercise.restSec` is optional in SwiftData storage so existing on-device stores migrate safely. Read rest through `resolvedRestSec`; write concrete `restSec` values for new or edited planned exercises.
 - Adding an exercise to a workout should create a `PlannedExercise` plus repeated `PlannedSet` rows from a fast setup flow: set count, optional weight, target reps/duration/distance, and rest.
 - New picked exercises start with sensible defaults if the reusable `Exercise` has no target default: 10 reps, 30 seconds, 1000 meters, and one set for distance exercises. The set editor's add button should copy the last set's targets or fall back to these defaults.
+- Timed exercise duration input should be minute/second-first with optional hours. Do not force users to type raw seconds or enter `00` hours for common minute/second durations.
 - In workout detail navigation, use direct destination links for `PlannedExerciseDetailView`. Avoid value-based `NavigationLink(value:)` / `navigationDestination(for: PlannedExercise.self)` routing for SwiftData `PlannedExercise`; it produced duplicate/missing destination warnings and delayed navigation on device.
 - Keep watch template execution behavior unchanged unless the task explicitly targets watch sync or watch UI wording.
 
@@ -79,6 +80,7 @@ Three layers, deliberately separated:
 
 - **`Stepper` auto-claims the Digital Crown** when focused, even if you didn't bind crown rotation to it. If you want the crown to scroll the page by default, replace Steppers with custom +/- buttons (see `InSetView.counterRow`).
 - **Use two state vars for crown-driven controls**: a regular `@State Bool` for the visual highlight + a `@FocusState Bool` for crown ownership. A single `@FocusState` driving both produces unreliable visual updates.
+- **RPE is optional** when completing a set. Store missing RPE as `nil`; analytics should ignore nil RPE values instead of treating them as zero or low effort.
 - **`@MainActor` classes cannot have a `deinit` that touches main-actor properties.** Use `weak self` inside background tasks instead of cleaning up in deinit.
 - **`HKWorkoutSession` is sufficient on its own** for background execution and to keep third-party audio playing. Do **not** stack `WKExtendedRuntimeSession` during an active workout — they conflict. Do **not** configure `AVAudioSession` (would steal audio from Spotify/Music).
 - **HealthKit lifecycle**: `endCollection(...)` then `finishWorkout(...)`. Both are required — dropping `finishWorkout` means the workout never appears in the Health app.

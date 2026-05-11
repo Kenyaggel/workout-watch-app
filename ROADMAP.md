@@ -22,6 +22,8 @@ These belong at the top of v2 because they're already half-done.
 - [x] **Up next details** — add the planned weight and reps to the Up next window so the lifter can prepare before the next set or exercise.
 - [x] **Workout start summary** — after starting a workout, show a summary of the whole plan before the first set: exercises, weights, reps, and set structure.
 - [x] **Exercise transition prep** — show an Up next window before every exercise, including the first exercise, not only between exercises later in the session.
+- [ ] **Timed exercise duration input** — timed exercise setup/editing should use ergonomic hours/minutes/seconds controls instead of forcing raw seconds. Hours should be optional/collapsed so common minute/second entries do not require typing `00` for hours.
+- [ ] **Optional RPE capture** — completing a set should not force RPE entry. Keep RPE available for users who want to log it, store missing RPE as nil, and make later analytics ignore nil values rather than treating them as low effort.
 
 ## v2 themes
 
@@ -37,7 +39,7 @@ The watch can run workouts but shouldn't create or edit them. Authoring belongs 
 - [x] **Default planned sets**: newly picked exercises and newly added sets start with sensible reps/duration/distance defaults and copy prior set targets where possible.
 - **Remaining iPhone UI polish**: rename internal/template-heavy view names only if it becomes worth the churn; add richer editing affordances as needed after real use.
 - **Watch UI**: read-only template picker stays as is; **add a "duplicate & edit on phone" affordance** so users discover the phone editor.
-- **Sync**: `WatchConnectivity` `WCSession` with `transferUserInfo` for templates (small payloads, queued, survives connectivity gaps). Don't use `sendMessage` — it requires both devices reachable.
+- [x] **Sync backbone**: `WatchConnectivity` `WCSession` with `transferUserInfo` now sends Codable template snapshots from iPhone to watch. The watch treats the phone as source of truth and replaces local templates when a snapshot arrives. Don't use `sendMessage` — it requires both devices reachable.
 - **Files**:
   - `WorkoutApp/WorkoutApp/Views/Library/TemplateListView.swift` (iOS Workouts list)
   - `WorkoutApp/WorkoutApp/Views/Library/TemplateDetailView.swift` (iOS workout editor)
@@ -98,11 +100,13 @@ Optional — only if the user wants to actually ship.
 2. [x] **Size up reps and RPE controls.** Keep the current editing model, improve legibility and tap targets.
 3. [x] **Add weight and reps to Up next.** Make prep screens more useful before each set/exercise.
 4. [x] **Workout start summary + first Up next.** Add the full-plan summary after start, then show Up next before the first exercise and every exercise transition.
-5. **Theme 2: History verification.** Test the existing iPhone History flow with real saved workouts; fix gaps found there.
-6. **Theme 1: iPhone workout editor polish + sync.** iPhone authoring foundation exists; next step is polish plus WatchConnectivity sync.
-7. **Theme 3: Recovery UI.** (1 evening once #6 is done — sync-ish skeleton already exists.)
-8. **Theme 4: Complication.** (1 evening — widget + deep link.)
-9. **Theme 5: App Store**, only if user opts in.
+5. **Timed exercise duration input.** Replace raw seconds entry with minute/second-first controls and optional hours.
+6. **Optional RPE capture.** Let users finish sets without RPE while preserving optional RPE analytics data.
+7. **Theme 2: History verification.** Test the existing iPhone History flow with real saved workouts; fix gaps found there.
+8. **Theme 1: iPhone workout editor polish.** WatchConnectivity sync backbone exists; remaining work is real-device sync shakedown plus any editor affordances found during use.
+9. **Theme 3: Recovery UI.** (1 evening once #6 is done — sync-ish skeleton already exists.)
+10. **Theme 4: Complication.** (1 evening — widget + deep link.)
+11. **Theme 5: App Store**, only if user opts in.
 
 ## Out of scope (still)
 

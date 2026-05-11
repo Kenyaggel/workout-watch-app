@@ -21,6 +21,8 @@ A watch-first strength workout app. The watch target manages the live workout lo
 - The SwiftData schema is at `WorkoutSchemaV2`. Every `@Model` class is nested inside both `WorkoutSchemaV1` (`SchemaV1.swift`) and `WorkoutSchemaV2` (`SchemaV2.swift`); module-level typealiases bind the bare names to V2. `WorkoutMigrationPlan` carries a custom V1→V2 stage that lifts `PlannedSet.restOverrideSec` onto `PlannedExercise.restSec`. Treat `WorkoutSchemaV1` as frozen; the next break adds `WorkoutSchemaV3` + a new stage.
 - Reusable iPhone form components live under `WorkoutApp/WorkoutApp/Views/Components/` (`NumberFields.swift` with `OptionalDoubleField` / `OptionalIntField` / `RequiredIntField`). Date and duration helpers live in `WorkoutApp/WorkoutApp/Extensions/Date+Formatting.swift`. For combined exercise analytics use `AnalyticsEngine.exerciseAnalytics(name:last:)` rather than two separate calls.
 - Adding an exercise to a workout should go through the fast setup flow that creates one `PlannedExercise` and repeated `PlannedSet` rows with sensible defaults. Reps default to 10, timed duration to 30 seconds, distance to 1000 meters, and distance work starts at one set.
+- Timed exercise duration input should be minute/second-first with optional hours. Do not make users enter raw seconds or type `00` hours for common minute/second durations.
+- RPE is optional at set completion. Store missing RPE as nil and keep analytics from treating nil RPE as zero or low effort.
 - Planned exercise rows should navigate with direct destination `NavigationLink`s. Avoid value-based navigation destinations for `PlannedExercise` SwiftData models in the template editor.
 
 ## Build And Test

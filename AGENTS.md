@@ -67,6 +67,7 @@ The iPhone app can be checked from CLI with the `xcodebuild` command above. The 
 - `PlannedSet` should only contain set-specific targets: weight, reps, duration, and distance. Do not reintroduce per-set rest unless the product explicitly needs mixed-rest sets.
 - Adding an exercise to a workout should use the fast setup flow: choose set count, optional weight, target reps/duration/distance, and rest, then create repeated `PlannedSet` rows under one `PlannedExercise`.
 - New picked exercises should start with sensible target defaults: reps default to 10, timed duration to 30 seconds, distance to 1000 meters, and distance work defaults to one set. Adding another set in the detail editor should copy the last set's targets or fall back to the exercise defaults.
+- Timed exercise duration input should be minute/second-first with optional hours. Do not force users to type raw seconds or enter `00` hours for common minute/second durations.
 - In `TemplateDetailView`, prefer direct `NavigationLink { PlannedExerciseDetailView(...) }` links for planned exercise rows. Avoid `NavigationLink(value:)` plus `navigationDestination(for: PlannedExercise.self)` for SwiftData model objects; it caused on-device duplicate/missing destination routing.
 - Keep watch execution and HealthKit behavior unchanged when working on iPhone-only authoring.
 
@@ -82,6 +83,7 @@ The iPhone app can be checked from CLI with the `xcodebuild` command above. The 
 
 - `Stepper` can steal the Digital Crown when focused. Prefer custom plus/minus buttons where scrolling must remain natural.
 - Crown-driven controls usually need separate state for visual highlight and focus ownership.
+- RPE entry should be optional when completing a set. Missing RPE should remain `nil` and analytics should ignore nil values instead of treating them as zero or low effort.
 - Avoid `@MainActor` `deinit` cleanup that touches actor-isolated properties. Prefer task cancellation on phase transitions and weak captures.
 
 ## Editing Expectations
