@@ -73,7 +73,10 @@ The iPhone app can be checked from CLI with the `xcodebuild` command above. The 
 ## SwiftData Migration Notes
 
 - Existing iPhone installs may already have a persistent store. New stored properties on `@Model` types should either be optional with a computed resolved value, have an explicit migration, or be safely backfilled before becoming mandatory.
-- `PlannedExercise.restSec` is intentionally optional in storage for lightweight migration. App code should write concrete values for new/edited planned exercises and read through `resolvedRestSec`.
+- The schema is currently at `WorkoutSchemaV2`. Every `@Model` type is nested inside both `WorkoutSchemaV1` and `WorkoutSchemaV2` (see `SchemaV1.swift` / `SchemaV2.swift`); module-level typealiases bind the bare names (`PlannedSet`, `Exercise`, …) to the V2 nested types so call sites don't change.
+- `WorkoutMigrationPlan` (in `Schema.swift`) runs a custom V1→V2 stage: `willMigrate` reads each `PlannedSet.restOverrideSec` and stashes the first non-nil value per parent; `didMigrate` writes it onto `PlannedExercise.restSec`. Don't mutate `WorkoutSchemaV1` in place — it's frozen as the on-disk shape for users updating from the prior build.
+- `PlannedExercise.restSec` is intentionally optional in storage so migrated rows that pre-date the rest-lifting stage still load. App code should write concrete values for new/edited planned exercises and read through `resolvedRestSec`.
+- For the next schema-breaking change: add `WorkoutSchemaV3` with its own nested `@Model` types, append a stage to `WorkoutMigrationPlan.stages`, and retarget the module-level typealiases. Use `MigrationTests` as the template for verifying the migration on a real on-disk store.
 
 ## watchOS Notes
 
@@ -86,6 +89,10 @@ The iPhone app can be checked from CLI with the `xcodebuild` command above. The 
 - Follow the existing Swift style: small value types in the core package, injected protocols at boundaries, focused SwiftUI views in the watch target.
 - Keep feature changes narrow. Avoid unrelated project-file churn.
 - When adding iPhone UI files, put them under `WorkoutApp/WorkoutApp/Views/`.
+- Reusable iPhone form components (numeric text fields, formatters, etc.) belong under `WorkoutApp/WorkoutApp/Views/Components/`. `NumberFields.swift` already exports `OptionalDoubleField`, `OptionalIntField`, and `RequiredIntField` with an `onChange(of: value)` mirror; reuse them instead of defining new private copies inside detail views.
+- Date helpers go in `WorkoutApp/WorkoutApp/Extensions/Date+Formatting.swift` (`formattedDate(_:)`, `formatDuration(_:_:)`).
+- When pickers select a SwiftData model, key on `persistentModelID` rather than on user-mutable strings like `name` — see `AnalyticsDashboardView`.
+- For combined analytics (progression + e1RM for the same exercise), call `AnalyticsEngine.exerciseAnalytics(name:last:)` once instead of two separate methods; it shares the fetch and grouping.
 - When adding watch UI files, put them under `WorkoutApp/WorkoutApp Watch App/Views/`.
 - When adding core tests, use the existing `var t: Date` plus `nowProvider` pattern.
 - Before finishing code changes, run `cd WorkoutCore && swift test` when the change touches `WorkoutCore`.

@@ -47,7 +47,7 @@ Use Xcode for normal device/simulator runs, especially watch workflows. CLI iPho
 
 Three layers, deliberately separated:
 
-1. **SwiftData models** (`WorkoutCore/Sources/WorkoutCore/Models/`). Templates, exercises, sessions, performed sets. Inheritance is avoided — `Exercise` carries a `kindRaw: String` plus a computed `kind: ExerciseKind` and nullable kind-specific fields. Schema is versioned via `WorkoutSchemaV1: VersionedSchema` from day one.
+1. **SwiftData models** (`WorkoutCore/Sources/WorkoutCore/Models/`). Templates, exercises, sessions, performed sets. Inheritance is avoided — `Exercise` carries a `kindRaw: String` plus a computed `kind: ExerciseKind` and nullable kind-specific fields. Schema is versioned: every `@Model` class is nested inside both `WorkoutSchemaV1` (`SchemaV1.swift`) and `WorkoutSchemaV2` (`SchemaV2.swift`); module-level typealiases (`PlannedSet = WorkoutSchemaV2.PlannedSet`, etc.) keep consumer code unchanged. `WorkoutMigrationPlan` in `Schema.swift` carries a custom V1→V2 stage that lifts per-set `restOverrideSec` onto `PlannedExercise.restSec`.
 
 2. **SessionEngine** (`Services/SessionEngine.swift`). `@MainActor @Observable` finite state machine: `.idle → .inSet → .rest → .inSet | .prep → ... → .complete`. The engine takes a **`SessionPlan`** (immutable value type) as input — this snapshot decouples the engine from SwiftData so it can be unit-tested in pure Swift with a fake `nowProvider`. Persistence and HealthKit are injected via protocols (`SessionRecorder`, `Haptics`).
 
@@ -67,7 +67,8 @@ Three layers, deliberately separated:
 ### SwiftData migration notes
 
 - This app has real on-device stores. New `@Model` attributes must be migration-safe: optional with a computed resolved value, explicitly migrated, or backfilled before they become required.
-- For future schema-breaking changes, add a new versioned schema and migration stage instead of relying on launch-time crashes to expose store mismatches.
+- The schema is currently at `WorkoutSchemaV2`. The V1→V2 migration is a custom stage that captures `PlannedSet.restOverrideSec` in `willMigrate` and writes it onto `PlannedExercise.restSec` in `didMigrate`. Never mutate `WorkoutSchemaV1` in place — frozen as the on-disk shape for users updating from the previous build.
+- For the next schema-breaking change, add `WorkoutSchemaV3` with its own nested `@Model` types, append a stage to `WorkoutMigrationPlan.stages`, and point the module-level typealiases at V3. `MigrationTests` is the template for verifying it on a real file-backed store.
 
 ### Recorder/HealthKit decoupling
 
@@ -94,3 +95,10 @@ Without these the app crashes with `NSInvalidArgumentException` the first time H
 ## When adding features to the engine
 
 Cover every new transition with a test in `WorkoutCoreTests/SessionEngineTests`. Existing tests inject a `var t: Date` closure as `nowProvider` and mutate `t` between calls to drive deterministic time.
+
+## iPhone view conventions
+
+- Shared form components (number text fields, etc.) live under `WorkoutApp/WorkoutApp/Views/Components/`. `NumberFields.swift` exports `OptionalDoubleField`, `OptionalIntField`, `RequiredIntField` — all with a width param and an `onChange(of: value)` mirror so external mutations propagate. Don't redefine these per-view.
+- Date and duration helpers live in `WorkoutApp/WorkoutApp/Extensions/Date+Formatting.swift` (`formattedDate(_:)`, `formatDuration(_:_:)`).
+- Pickers over SwiftData models should key on `persistentModelID`, not on names — names can change and silently drop the selection. See `AnalyticsDashboardView` for the pattern.
+- For combined analytics queries (progression + e1RM for the same exercise), call `AnalyticsEngine.exerciseAnalytics(name:last:)` once instead of `exerciseProgression` + `estimated1RM`; it shares the fetch and the per-day grouping.

@@ -17,7 +17,9 @@ A watch-first strength workout app. The watch target manages the live workout lo
 - iPhone visible language uses "Workouts" for reusable plans, but the model is still `WorkoutTemplate`; avoid schema churn unless explicitly requested.
 - iPhone `Exercise` management owns name, kind, default rest, and kind-specific default target. Weight belongs to workout-specific planned sets, not reusable exercises.
 - In a template, rest belongs to `PlannedExercise`. `PlannedSet` is for set-specific targets only: weight, reps, duration, and distance.
-- `PlannedExercise.restSec` is optional in storage for existing SwiftData stores; read with `resolvedRestSec` and write concrete values for new/edited planned exercises.
+- `PlannedExercise.restSec` is optional in storage so migrated rows from earlier app versions still load; read with `resolvedRestSec` and write concrete values for new/edited planned exercises.
+- The SwiftData schema is at `WorkoutSchemaV2`. Every `@Model` class is nested inside both `WorkoutSchemaV1` (`SchemaV1.swift`) and `WorkoutSchemaV2` (`SchemaV2.swift`); module-level typealiases bind the bare names to V2. `WorkoutMigrationPlan` carries a custom V1→V2 stage that lifts `PlannedSet.restOverrideSec` onto `PlannedExercise.restSec`. Treat `WorkoutSchemaV1` as frozen; the next break adds `WorkoutSchemaV3` + a new stage.
+- Reusable iPhone form components live under `WorkoutApp/WorkoutApp/Views/Components/` (`NumberFields.swift` with `OptionalDoubleField` / `OptionalIntField` / `RequiredIntField`). Date and duration helpers live in `WorkoutApp/WorkoutApp/Extensions/Date+Formatting.swift`. For combined exercise analytics use `AnalyticsEngine.exerciseAnalytics(name:last:)` rather than two separate calls.
 - Adding an exercise to a workout should go through the fast setup flow that creates one `PlannedExercise` and repeated `PlannedSet` rows with sensible defaults. Reps default to 10, timed duration to 30 seconds, distance to 1000 meters, and distance work starts at one set.
 - Planned exercise rows should navigate with direct destination `NavigationLink`s. Avoid value-based navigation destinations for `PlannedExercise` SwiftData models in the template editor.
 
@@ -45,4 +47,4 @@ Use Xcode for watch app build/run workflows.
 - Prefer changing the Swift package for business logic and adding macOS-runnable tests there.
 - Keep watch target changes focused on presentation, interaction, haptics wiring, and HealthKit lifecycle wiring.
 - Keep iPhone authoring changes in the iOS target unless shared model/session behavior truly needs to change.
-- Treat SwiftData schema changes as on-device migrations. New model fields should be optional/resolved or covered by an explicit migration before they are required.
+- Treat SwiftData schema changes as on-device migrations. New model fields should be optional/resolved or covered by an explicit migration before they are required. The V1→V2 stage in `WorkoutMigrationPlan` is the working template; `MigrationTests` shows how to verify a stage end-to-end on a file-backed store.

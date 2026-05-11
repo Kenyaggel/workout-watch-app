@@ -121,5 +121,5 @@ These are load-bearing — don't break them.
 - **`HKWorkoutSession` only — no `WKExtendedRuntimeSession`** during an active session.
 - **Don't configure `AVAudioSession`.** Spotify must keep playing.
 - **HealthKit lifecycle**: always `endCollection(...)` *then* `finishWorkout(...)`. Both calls.
-- **SwiftData schema-breaking changes go through a new `WorkoutSchemaV2` + `SchemaMigrationPlan`.** Lightweight additions still must be migration-safe for real devices. Optional stored fields plus computed resolved values are acceptable when the old store can load cleanly.
+- **SwiftData schema-breaking changes go through a new versioned schema + stage in `WorkoutMigrationPlan`.** `WorkoutSchemaV1` is frozen as the on-disk shape for users updating from the prior build; `WorkoutSchemaV2` is current. The next break adds `WorkoutSchemaV3` with its own nested `@Model` types, appends a stage, and retargets the module-level typealiases. Lightweight additions still must be migration-safe for real devices — optional stored fields plus computed resolved values are acceptable when the old store can load cleanly.
 - **No `@Model` types crossing process boundaries.** Always encode to a `Codable` DTO before sending over `WCSession` or saving to a file.
