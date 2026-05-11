@@ -33,7 +33,7 @@ public enum SeedData {
         let template = WorkoutTemplate(name: "Push Day")
         context.insert(template)
 
-        let pe1 = PlannedExercise(orderIndex: 0, exercise: benchPress, restSec: benchPress.defaultRestSec)
+        let pe1 = PlannedExercise(orderIndex: 0, exercise: benchPress)
         pe1.template = template
         context.insert(pe1)
         for i in 0..<4 {
@@ -46,7 +46,7 @@ public enum SeedData {
             context.insert(s)
         }
 
-        let pe2 = PlannedExercise(orderIndex: 1, exercise: inclineDB, restSec: inclineDB.defaultRestSec)
+        let pe2 = PlannedExercise(orderIndex: 1, exercise: inclineDB)
         pe2.template = template
         context.insert(pe2)
         for i in 0..<3 {
@@ -59,7 +59,7 @@ public enum SeedData {
             context.insert(s)
         }
 
-        let pe3 = PlannedExercise(orderIndex: 2, exercise: plank, restSec: plank.defaultRestSec)
+        let pe3 = PlannedExercise(orderIndex: 2, exercise: plank)
         pe3.template = template
         context.insert(pe3)
         for i in 0..<3 {

@@ -87,6 +87,11 @@ public enum WorkoutSchemaV2: VersionedSchema {
         @Relationship(deleteRule: .cascade, inverse: \PlannedSet.plannedExercise)
         public var sets: [PlannedSet] = []
 
+        /// Pass `restSec: nil` to mean "use the exercise's default rest" — not
+        /// "no rest". The init normalizes nil to `exercise?.defaultRestSec ?? 90`
+        /// so newly-created rows always carry a concrete value; only rows that
+        /// predate the V1→V2 migration can hold nil at rest. Read rest through
+        /// `resolvedRestSec` to paper over both cases.
         public init(
             id: UUID = UUID(),
             orderIndex: Int,

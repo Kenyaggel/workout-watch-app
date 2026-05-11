@@ -261,6 +261,43 @@ final class AnalyticsEngineTests: XCTestCase {
         XCTAssertEqual(points[0].estimatedMax, expected, accuracy: 0.001)
     }
 
+    // MARK: - exerciseAnalytics (combined)
+
+    func testExerciseAnalyticsMatchesIndividualMethods() throws {
+        let ctx = try makeContext()
+        let now = Date()
+        let yesterday = now.addingTimeInterval(-86_400)
+        let twoDaysAgo = now.addingTimeInterval(-2 * 86_400)
+
+        let s1 = WorkoutSession(startedAt: yesterday, templateName: "Strength")
+        ctx.insert(s1)
+        let set1 = PerformedSet(orderIndex: 0, exerciseName: "Squat",
+                                exerciseIndex: 0, setIndex: 0,
+                                weightKg: 100, reps: 5, completedAt: yesterday)
+        set1.session = s1; ctx.insert(set1)
+        let set2 = PerformedSet(orderIndex: 1, exerciseName: "Squat",
+                                exerciseIndex: 0, setIndex: 1,
+                                weightKg: 110, reps: 3, completedAt: yesterday)
+        set2.session = s1; ctx.insert(set2)
+
+        let s2 = WorkoutSession(startedAt: twoDaysAgo, templateName: "Strength")
+        ctx.insert(s2)
+        let set3 = PerformedSet(orderIndex: 0, exerciseName: "Squat",
+                                exerciseIndex: 0, setIndex: 0,
+                                weightKg: 90, reps: 5, completedAt: twoDaysAgo)
+        set3.session = s2; ctx.insert(set3)
+
+        try ctx.save()
+
+        let engine = AnalyticsEngine(modelContext: ctx)
+        let combined = engine.exerciseAnalytics(name: "Squat", last: 20)
+        let progression = engine.exerciseProgression(exerciseName: "Squat", last: 20)
+        let e1rm = engine.estimated1RM(exerciseName: "Squat", last: 20)
+
+        XCTAssertEqual(combined.progression, progression)
+        XCTAssertEqual(combined.e1rm, e1rm)
+    }
+
     func testEstimated1RMTakesMaxPerSession() throws {
         let ctx = try makeContext()
 

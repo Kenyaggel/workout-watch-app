@@ -5,8 +5,8 @@ Where v1 ended and where v2 takes us. Use this as the working plan; tick items o
 ## v1 — what shipped
 
 - Three-mode session loop: **in-set / rest / prep** with wall-clock timers via `TimelineView`.
-- `SessionEngine` finite state machine, unit-tested against an injected `nowProvider` (15 `SessionEngineTests`; 23 package tests total as of the iPhone template editor refactor).
-- `WorkoutCore` Swift Package with versioned SwiftData schema (`WorkoutSchemaV1`) and a clean recorder/lifecycle protocol split so the package builds on macOS for tests.
+- `SessionEngine` finite state machine, unit-tested against an injected `nowProvider` in `SessionEngineTests`, alongside analytics and migration coverage in `WorkoutCoreTests`.
+- `WorkoutCore` Swift Package with versioned SwiftData schema (`WorkoutSchemaV1` and `WorkoutSchemaV2`, the latter lifting per-set `restOverrideSec` onto `PlannedExercise.restSec` via a custom migration stage) and a clean recorder/lifecycle protocol split so the package builds on macOS for tests.
 - HealthKit recording on watchOS via `HKWorkoutSession` + `HKLiveWorkoutBuilder`, gated `#if canImport(HealthKit) && os(watchOS)`.
 - One seeded template (Push Day) so the app is usable from launch.
 - iPhone target has early Workouts, Exercises, History, and Analytics surfaces (signing/entitlements pre-wired).

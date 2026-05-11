@@ -49,13 +49,47 @@ public struct AnalyticsEngine {
     /// group by session.startedAt calendar day, per session take max weightKg and sum volume,
     /// return last N sessions sorted ascending by sessionDate.
     public func exerciseProgression(exerciseName: String, last sessions: Int) -> [ExerciseDataPoint] {
+        exerciseAnalytics(name: exerciseName, last: sessions).progression
+    }
+
+    /// Fetch PerformedSets for the exercise once, group by session day, and return both
+    /// progression (max weight + total volume per day) and Epley e1RM (max per day).
+    /// Use this instead of calling `exerciseProgression` and `estimated1RM` separately when
+    /// you need both — it cuts the fetch and grouping work in half.
+    public func exerciseAnalytics(name: String, last sessions: Int) -> ExerciseAnalytics {
+        let byDay = groupedSetsByDay(exerciseName: name, last: sessions)
+
+        let progression = byDay.map { (day, daySets) -> ExerciseDataPoint in
+            let maxWeight = daySets.compactMap(\.weightKg).max() ?? 0
+            let totalVolume = daySets.reduce(0.0) { acc, s in
+                acc + (s.weightKg ?? 0) * Double(s.reps ?? 0)
+            }
+            return ExerciseDataPoint(sessionDate: day, maxWeightKg: maxWeight, totalVolumeKg: totalVolume)
+        }
+        .sorted { $0.sessionDate < $1.sessionDate }
+
+        let e1rm = byDay.map { (day, daySets) -> E1RMDataPoint in
+            let maxE1rm = daySets.map { s in
+                (s.weightKg ?? 0) * (1.0 + Double(s.reps ?? 0) / 30.0)
+            }.max() ?? 0
+            return E1RMDataPoint(sessionDate: day, estimatedMax: maxE1rm)
+        }
+        .sorted { $0.sessionDate < $1.sessionDate }
+
+        return ExerciseAnalytics(
+            progression: Array(progression.suffix(sessions)),
+            e1rm: Array(e1rm.suffix(sessions))
+        )
+    }
+
+    private func groupedSetsByDay(exerciseName: String, last sessions: Int) -> [Date: [PerformedSet]] {
         let cal = Calendar.current
         let now = Date()
         // Conservative date lower-bound: 60 days per requested session keeps the fetch bounded
         // while virtually never excluding real data.
         let conservativeDaysBack = sessions * 60
         guard let rangeStart = cal.date(byAdding: .day, value: -conservativeDaysBack, to: now) else {
-            return []
+            return [:]
         }
 
         let descriptor = FetchDescriptor<PerformedSet>(
@@ -71,25 +105,13 @@ public struct AnalyticsEngine {
         // SwiftData #Predicate cannot express Int? > 0 comparisons — filter in Swift
         let filtered = sets.filter { ($0.reps ?? 0) > 0 }
 
-        // Group by session day using session.startedAt if available, else completedAt
         var byDay: [Date: [PerformedSet]] = [:]
         for set in filtered {
             let anchor = set.session?.startedAt ?? set.completedAt
             guard let dayStart = cal.dateInterval(of: .day, for: anchor)?.start else { continue }
             byDay[dayStart, default: []].append(set)
         }
-
-        let allPoints = byDay.map { (day, daySets) -> ExerciseDataPoint in
-            let maxWeight = daySets.compactMap(\.weightKg).max() ?? 0
-            let totalVolume = daySets.reduce(0.0) { acc, s in
-                acc + (s.weightKg ?? 0) * Double(s.reps ?? 0)
-            }
-            return ExerciseDataPoint(sessionDate: day, maxWeightKg: maxWeight, totalVolumeKg: totalVolume)
-        }
-        .sorted { $0.sessionDate < $1.sessionDate }
-
-        let lastN = allPoints.suffix(sessions)
-        return Array(lastN)
+        return byDay
     }
 
     // MARK: - Workout Frequency
@@ -130,44 +152,6 @@ public struct AnalyticsEngine {
     /// group by session day, apply Epley formula weight * (1 + reps / 30.0) to each set,
     /// take max e1RM per session, return last N sessions sorted ascending.
     public func estimated1RM(exerciseName: String, last sessions: Int) -> [E1RMDataPoint] {
-        let cal = Calendar.current
-        let now = Date()
-        // Conservative date lower-bound: 60 days per requested session keeps the fetch bounded.
-        let conservativeDaysBack = sessions * 60
-        guard let rangeStart = cal.date(byAdding: .day, value: -conservativeDaysBack, to: now) else {
-            return []
-        }
-
-        let descriptor = FetchDescriptor<PerformedSet>(
-            predicate: #Predicate {
-                $0.exerciseName == exerciseName &&
-                $0.weightKg != nil &&
-                $0.reps != nil &&
-                $0.completedAt >= rangeStart
-            }
-        )
-        let sets = (try? modelContext.fetch(descriptor)) ?? []
-
-        // SwiftData #Predicate cannot express Int? > 0 comparisons — filter in Swift
-        let filtered = sets.filter { ($0.reps ?? 0) > 0 }
-
-        var byDay: [Date: Double] = [:]
-        for set in filtered {
-            let anchor = set.session?.startedAt ?? set.completedAt
-            guard let dayStart = cal.dateInterval(of: .day, for: anchor)?.start else { continue }
-            let weight = set.weightKg ?? 0
-            let reps = set.reps ?? 0
-            let e1rm = weight * (1.0 + Double(reps) / 30.0)
-            if e1rm > (byDay[dayStart] ?? 0) {
-                byDay[dayStart] = e1rm
-            }
-        }
-
-        let allPoints = byDay
-            .map { E1RMDataPoint(sessionDate: $0.key, estimatedMax: $0.value) }
-            .sorted { $0.sessionDate < $1.sessionDate }
-
-        let lastN = allPoints.suffix(sessions)
-        return Array(lastN)
+        exerciseAnalytics(name: exerciseName, last: sessions).e1rm
     }
 }

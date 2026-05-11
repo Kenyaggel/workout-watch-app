@@ -90,7 +90,9 @@ struct TemplateDetailView: View {
         let first = pe.orderedSets.first
 
         var parts: [String] = ["\(setCount) set\(setCount == 1 ? "" : "s")"]
-        let weightStr = first?.targetWeightKg.map { String(format: "%.4g kg", $0) }
+        let weightStr = first?.targetWeightKg.map {
+            "\($0.formatted(.number.precision(.fractionLength(0...2)))) kg"
+        }
 
         switch kind {
         case .reps:

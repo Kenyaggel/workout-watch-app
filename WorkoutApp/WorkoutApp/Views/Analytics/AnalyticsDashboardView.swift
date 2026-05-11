@@ -40,9 +40,10 @@ struct AnalyticsDashboardView: View {
                 e1rmPoints = []
                 return
             }
-            let engine = AnalyticsEngine(modelContext: modelContext)
-            progressionPoints = engine.exerciseProgression(exerciseName: name, last: 20)
-            e1rmPoints = engine.estimated1RM(exerciseName: name, last: 20)
+            let analytics = AnalyticsEngine(modelContext: modelContext)
+                .exerciseAnalytics(name: name, last: 20)
+            progressionPoints = analytics.progression
+            e1rmPoints = analytics.e1rm
         }
         .onChange(of: exercises) { _, newValue in
             if selectedExerciseID == nil, let first = newValue.first {
