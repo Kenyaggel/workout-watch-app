@@ -10,13 +10,33 @@ struct PlannedExerciseDetailView: View {
         plannedExercise.exercise?.kind ?? .reps
     }
 
+    private var restBinding: Binding<Int?> {
+        Binding(
+            get: { plannedExercise.orderedSets.first?.restOverrideSec },
+            set: { newValue in
+                for set in plannedExercise.sets {
+                    set.restOverrideSec = newValue
+                }
+            }
+        )
+    }
+
     var body: some View {
         List {
-            ForEach(plannedExercise.orderedSets) { ps in
-                PlannedSetRow(plannedSet: ps, kind: exerciseKind)
+            Section {
+                HStack {
+                    Text("Rest between sets")
+                    Spacer()
+                    OptionalIntField(label: "sec", value: restBinding)
+                }
             }
-            .onDelete(perform: deleteSets)
-            .onMove(perform: moveSets)
+            Section("Sets") {
+                ForEach(plannedExercise.orderedSets) { ps in
+                    PlannedSetRow(plannedSet: ps, kind: exerciseKind)
+                }
+                .onDelete(perform: deleteSets)
+                .onMove(perform: moveSets)
+            }
         }
         .navigationTitle(plannedExercise.exercise?.name ?? "Exercise")
         .toolbar {
@@ -25,7 +45,11 @@ struct PlannedExerciseDetailView: View {
             }
             ToolbarItem(placement: .primaryAction) {
                 Button {
-                    let ps = PlannedSet(orderIndex: plannedExercise.orderedSets.count)
+                    let currentRest = plannedExercise.orderedSets.first?.restOverrideSec
+                    let ps = PlannedSet(
+                        orderIndex: plannedExercise.orderedSets.count,
+                        restOverrideSec: currentRest
+                    )
                     ps.plannedExercise = plannedExercise
                     modelContext.insert(ps)
                 } label: {
@@ -96,15 +120,6 @@ private struct PlannedSetRow: View {
                         value: $plannedSet.targetDistanceM
                     )
                 }
-            }
-            HStack {
-                Text("Rest override (sec)")
-                    .foregroundStyle(.secondary)
-                Spacer()
-                OptionalIntField(
-                    label: "sec",
-                    value: $plannedSet.restOverrideSec
-                )
             }
         }
         .font(.subheadline)

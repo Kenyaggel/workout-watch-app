@@ -10,13 +10,11 @@ struct ExerciseDetailView: View {
 
     @State private var name: String
     @State private var kind: ExerciseKind
-    @State private var defaultRestSec: Int
 
     init(exercise: Exercise? = nil) {
         self.exercise = exercise
         _name = State(initialValue: exercise?.name ?? "")
         _kind = State(initialValue: exercise?.kind ?? .reps)
-        _defaultRestSec = State(initialValue: exercise?.defaultRestSec ?? 90)
     }
 
     var body: some View {
@@ -31,9 +29,6 @@ struct ExerciseDetailView: View {
                     }
                 }
                 .pickerStyle(.segmented)
-            }
-            Section("Default Rest") {
-                Stepper("\(defaultRestSec) seconds", value: $defaultRestSec, in: 0...600, step: 15)
             }
         }
         .navigationTitle(exercise == nil ? "New Exercise" : "Edit Exercise")
@@ -56,9 +51,8 @@ struct ExerciseDetailView: View {
         if let existing = exercise {
             existing.name = trimmed
             existing.kind = kind
-            existing.defaultRestSec = defaultRestSec
         } else {
-            let ex = Exercise(name: trimmed, kind: kind, defaultRestSec: defaultRestSec)
+            let ex = Exercise(name: trimmed, kind: kind, defaultRestSec: 90)
             modelContext.insert(ex)
         }
     }
