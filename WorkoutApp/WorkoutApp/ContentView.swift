@@ -5,7 +5,9 @@ struct ContentView: View {
     var body: some View {
         TabView {
             NavigationStack { TemplateListView() }
-                .tabItem { Label("Library", systemImage: "books.vertical") }
+                .tabItem { Label("Workouts", systemImage: "list.bullet.clipboard") }
+            NavigationStack { ExerciseLibraryView() }
+                .tabItem { Label("Exercises", systemImage: "figure.strengthtraining.traditional") }
             NavigationStack { SessionListView() }
                 .tabItem { Label("History", systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90") }
             NavigationStack { AnalyticsDashboardView() }

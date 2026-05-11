@@ -5,7 +5,6 @@ import WorkoutCore
 struct ExerciseLibraryView: View {
     @Query(sort: \Exercise.name) var exercises: [Exercise]
     @Environment(\.modelContext) private var modelContext
-    @Environment(\.dismiss) private var dismiss
     var isPickMode: Bool = false
     var onPick: ((Exercise) -> Void)? = nil
     @State private var showCreateExercise = false
@@ -15,7 +14,6 @@ struct ExerciseLibraryView: View {
             ForEach(exercises) { exercise in
                 ExerciseRow(exercise: exercise, isPickMode: isPickMode) {
                     onPick?(exercise)
-                    dismiss()
                 }
             }
             .onDelete { offsets in

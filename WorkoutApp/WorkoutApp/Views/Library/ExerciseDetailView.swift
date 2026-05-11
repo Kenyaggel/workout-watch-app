@@ -10,11 +10,19 @@ struct ExerciseDetailView: View {
 
     @State private var name: String
     @State private var kind: ExerciseKind
+    @State private var defaultRestSec: Int
+    @State private var defaultTargetReps: Int?
+    @State private var defaultTargetDurationSec: Int?
+    @State private var defaultTargetDistanceM: Double?
 
     init(exercise: Exercise? = nil) {
         self.exercise = exercise
         _name = State(initialValue: exercise?.name ?? "")
         _kind = State(initialValue: exercise?.kind ?? .reps)
+        _defaultRestSec = State(initialValue: exercise?.defaultRestSec ?? 90)
+        _defaultTargetReps = State(initialValue: exercise?.defaultTargetReps)
+        _defaultTargetDurationSec = State(initialValue: exercise?.defaultTargetDurationSec)
+        _defaultTargetDistanceM = State(initialValue: exercise?.defaultTargetDistanceM)
     }
 
     var body: some View {
@@ -29,6 +37,31 @@ struct ExerciseDetailView: View {
                     }
                 }
                 .pickerStyle(.segmented)
+            }
+            Section("Defaults") {
+                Stepper(value: $defaultRestSec, in: 0...600, step: 15) {
+                    LabeledContent("Rest", value: "\(defaultRestSec) sec")
+                }
+                switch kind {
+                case .reps:
+                    HStack {
+                        Text("Reps")
+                        Spacer()
+                        ExerciseOptionalIntField(label: "reps", value: $defaultTargetReps)
+                    }
+                case .timed:
+                    HStack {
+                        Text("Duration")
+                        Spacer()
+                        ExerciseOptionalIntField(label: "sec", value: $defaultTargetDurationSec)
+                    }
+                case .distance:
+                    HStack {
+                        Text("Distance")
+                        Spacer()
+                        ExerciseOptionalDoubleField(label: "m", value: $defaultTargetDistanceM)
+                    }
+                }
             }
         }
         .navigationTitle(exercise == nil ? "New Exercise" : "Edit Exercise")
@@ -51,9 +84,58 @@ struct ExerciseDetailView: View {
         if let existing = exercise {
             existing.name = trimmed
             existing.kind = kind
+            existing.defaultRestSec = defaultRestSec
+            existing.defaultTargetReps = kind == .reps ? defaultTargetReps : nil
+            existing.defaultTargetDurationSec = kind == .timed ? defaultTargetDurationSec : nil
+            existing.defaultTargetDistanceM = kind == .distance ? defaultTargetDistanceM : nil
         } else {
-            let ex = Exercise(name: trimmed, kind: kind, defaultRestSec: 90)
+            let ex = Exercise(
+                name: trimmed,
+                kind: kind,
+                defaultRestSec: defaultRestSec,
+                defaultTargetReps: kind == .reps ? defaultTargetReps : nil,
+                defaultTargetDurationSec: kind == .timed ? defaultTargetDurationSec : nil,
+                defaultTargetDistanceM: kind == .distance ? defaultTargetDistanceM : nil
+            )
             modelContext.insert(ex)
         }
+    }
+}
+
+private struct ExerciseOptionalIntField: View {
+    let label: String
+    @Binding var value: Int?
+    @State private var text: String = ""
+
+    var body: some View {
+        TextField(label, text: $text)
+            .keyboardType(.numberPad)
+            .multilineTextAlignment(.trailing)
+            .frame(width: 90)
+            .onAppear {
+                if let value { text = String(value) }
+            }
+            .onChange(of: text) { _, newValue in
+                value = newValue.isEmpty ? nil : Int(newValue)
+            }
+    }
+}
+
+private struct ExerciseOptionalDoubleField: View {
+    let label: String
+    @Binding var value: Double?
+    @State private var text: String = ""
+
+    var body: some View {
+        TextField(label, text: $text)
+            .keyboardType(.decimalPad)
+            .multilineTextAlignment(.trailing)
+            .frame(width: 90)
+            .onAppear {
+                if let value { text = String(format: "%.4g", value) }
+            }
+            .onChange(of: text) { _, newValue in
+                value = newValue.isEmpty ? nil : Double(newValue)
+            }
     }
 }

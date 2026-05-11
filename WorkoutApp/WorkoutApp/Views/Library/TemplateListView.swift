@@ -24,14 +24,14 @@ struct TemplateListView: View {
             }
             .onDelete(perform: deleteTemplates)
         }
-        .navigationTitle("Library")
+        .navigationTitle("Workouts")
         .navigationDestination(item: $navigateTo) { template in
             TemplateDetailView(template: template)
         }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
-                    let template = WorkoutTemplate(name: "New Template")
+                    let template = WorkoutTemplate(name: "New Workout")
                     modelContext.insert(template)
                     navigateTo = template
                 } label: {

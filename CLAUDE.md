@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Apple Watch Ultra workout companion. Watch app drives the moment-to-moment loop of a strength workout (in-set / rest / prep), saves sessions to HealthKit, and lets third-party audio (Spotify/Music) play uninterrupted. iPhone target is a stub for v2 features.
+Apple Watch Ultra workout companion. Watch app drives the moment-to-moment loop of a strength workout (in-set / rest / prep), saves sessions to HealthKit, and lets third-party audio (Spotify/Music) play uninterrupted. The iPhone app now owns early workout authoring: reusable Workouts, reusable Exercises, History, and Analytics.
 
 ## Layout
 
@@ -12,7 +12,7 @@ Apple Watch Ultra workout companion. Watch app drives the moment-to-moment loop 
 WorkoutCore/                    Swift Package, shared by both apps. macOS/iOS/watchOS.
 WorkoutApp/                     Xcode project lives here.
   WorkoutApp.xcodeproj
-  WorkoutApp/                   iOS app target source (placeholder UI only).
+  WorkoutApp/                   iOS app target source: Workouts, Exercises, History, Analytics.
   WorkoutApp Watch App/         watchOS app target source. All real UI is here.
 project.yml                     XcodeGen spec (optional regen).
 ```
@@ -49,6 +49,13 @@ Three layers, deliberately separated:
 2. **SessionEngine** (`Services/SessionEngine.swift`). `@MainActor @Observable` finite state machine: `.idle → .inSet → .rest → .inSet | .prep → ... → .complete`. The engine takes a **`SessionPlan`** (immutable value type) as input — this snapshot decouples the engine from SwiftData so it can be unit-tested in pure Swift with a fake `nowProvider`. Persistence and HealthKit are injected via protocols (`SessionRecorder`, `Haptics`).
 
 3. **Wall-clock timers, not tick counters.** Rest mode stores `endsAt: Date`; views compute remaining via `TimelineView(.periodic(...))`. Haptics are scheduled by a single `Task` that `Task.sleep`s until each absolute date and is cancelled on every phase change. Never use `Timer.scheduledTimer` — it drifts when the display sleeps.
+
+### iPhone authoring model
+
+- The iPhone app uses visible "Workouts" language for reusable workout plans, while the underlying SwiftData model remains `WorkoutTemplate` for now.
+- The iPhone `Exercises` tab manages reusable `Exercise` records: name, kind, default rest, and kind-specific default target reps/duration/distance. Do not add default weight to `Exercise`; weight is workout-specific.
+- Adding an exercise to a workout should create a `PlannedExercise` plus repeated `PlannedSet` rows from a fast setup flow: set count, optional weight, target reps/duration/distance, and rest.
+- Keep watch template execution behavior unchanged unless the task explicitly targets watch sync or watch UI wording.
 
 ### Recorder/HealthKit decoupling
 

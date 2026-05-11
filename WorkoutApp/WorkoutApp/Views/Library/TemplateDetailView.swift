@@ -1,16 +1,17 @@
 import SwiftUI
 import SwiftData
+import UIKit
 import WorkoutCore
 
 struct TemplateDetailView: View {
     @Bindable var template: WorkoutTemplate
     @Environment(\.modelContext) private var modelContext
-    @State private var showExercisePicker = false
+    @State private var activeSheet: TemplateDetailSheet?
 
     var body: some View {
         List {
             Section {
-                TextField("Template name", text: $template.name)
+                TextField("Workout name", text: $template.name)
             }
             Section {
                 ForEach(template.orderedExercises) { pe in
@@ -37,45 +38,55 @@ struct TemplateDetailView: View {
             }
             ToolbarItem(placement: .primaryAction) {
                 Button {
-                    showExercisePicker = true
+                    activeSheet = .exercisePicker
                 } label: {
                     Image(systemName: "plus")
                 }
             }
         }
-        .sheet(isPresented: $showExercisePicker) {
-            NavigationStack {
-                ExerciseLibraryView(isPickMode: true) { picked in
-                    let pe = PlannedExercise(
-                        orderIndex: template.orderedExercises.count,
-                        exercise: picked
-                    )
-                    pe.template = template
-                    modelContext.insert(pe)
-                    for i in 0..<3 {
-                        let ps = makeDefaultSet(for: picked, orderIndex: i)
-                        ps.plannedExercise = pe
-                        modelContext.insert(ps)
+        .sheet(item: $activeSheet) { sheet in
+            switch sheet {
+            case .exercisePicker:
+                NavigationStack {
+                    ExerciseLibraryView(isPickMode: true) { picked in
+                        activeSheet = .exerciseSetup(picked)
                     }
-                    showExercisePicker = false
+                }
+            case .exerciseSetup(let exercise):
+                NavigationStack {
+                    AddExerciseSetupView(exercise: exercise) { setup in
+                        addExercise(exercise, setup: setup)
+                        activeSheet = nil
+                    }
                 }
             }
         }
     }
 
-    private func makeDefaultSet(for exercise: Exercise, orderIndex: Int) -> PlannedSet {
-        switch exercise.kind {
-        case .reps:
-            return PlannedSet(orderIndex: orderIndex, targetReps: exercise.defaultTargetReps)
-        case .timed:
-            return PlannedSet(orderIndex: orderIndex, targetDurationSec: exercise.defaultTargetDurationSec)
-        case .distance:
-            return PlannedSet(orderIndex: orderIndex, targetDistanceM: exercise.defaultTargetDistanceM)
+    private func addExercise(_ exercise: Exercise, setup: ExerciseSetup) {
+        let pe = PlannedExercise(
+            orderIndex: template.orderedExercises.count,
+            exercise: exercise
+        )
+        pe.template = template
+        modelContext.insert(pe)
+
+        for index in 0..<setup.setCount {
+            let set = PlannedSet(
+                orderIndex: index,
+                targetWeightKg: setup.targetWeightKg,
+                targetReps: exercise.kind == .reps ? setup.targetReps : nil,
+                targetDurationSec: exercise.kind == .timed ? setup.targetDurationSec : nil,
+                targetDistanceM: exercise.kind == .distance ? setup.targetDistanceM : nil,
+                restOverrideSec: setup.restSec
+            )
+            set.plannedExercise = pe
+            modelContext.insert(set)
         }
     }
 
     private func summary(for pe: PlannedExercise) -> String {
-        let setCount = pe.sets.count
+        let setCount = pe.orderedSets.count
         let kind = pe.exercise?.kind ?? .reps
         let first = pe.orderedSets.first
 
@@ -104,6 +115,9 @@ struct TemplateDetailView: View {
                 parts.append(String(format: "%.0f m", dist))
             }
         }
+        if let rest = first?.restOverrideSec ?? pe.exercise?.defaultRestSec {
+            parts.append("\(rest)s rest")
+        }
 
         return parts.joined(separator: " · ")
     }
@@ -121,5 +135,138 @@ struct TemplateDetailView: View {
         for (newIndex, pe) in ordered.enumerated() {
             pe.orderIndex = newIndex
         }
+    }
+}
+
+private enum TemplateDetailSheet: Identifiable {
+    case exercisePicker
+    case exerciseSetup(Exercise)
+
+    var id: String {
+        switch self {
+        case .exercisePicker:
+            return "exercisePicker"
+        case .exerciseSetup(let exercise):
+            return "exerciseSetup-\(exercise.id)"
+        }
+    }
+}
+
+private struct ExerciseSetup {
+    var setCount: Int
+    var targetWeightKg: Double?
+    var targetReps: Int?
+    var targetDurationSec: Int?
+    var targetDistanceM: Double?
+    var restSec: Int
+}
+
+private struct AddExerciseSetupView: View {
+    let exercise: Exercise
+    let onSave: (ExerciseSetup) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var setCount: Int
+    @State private var weightText: String
+    @State private var repsText: String
+    @State private var durationText: String
+    @State private var distanceText: String
+    @State private var restText: String
+
+    init(exercise: Exercise, onSave: @escaping (ExerciseSetup) -> Void) {
+        self.exercise = exercise
+        self.onSave = onSave
+        _setCount = State(initialValue: 3)
+        _weightText = State(initialValue: "")
+        _repsText = State(initialValue: exercise.defaultTargetReps.map(String.init) ?? "")
+        _durationText = State(initialValue: exercise.defaultTargetDurationSec.map(String.init) ?? "")
+        _distanceText = State(initialValue: exercise.defaultTargetDistanceM.map { String(format: "%.4g", $0) } ?? "")
+        _restText = State(initialValue: String(exercise.defaultRestSec))
+    }
+
+    var body: some View {
+        Form {
+            Section("Exercise") {
+                LabeledContent("Name", value: exercise.name)
+                LabeledContent("Type", value: exercise.kind.displayName)
+            }
+            Section("Sets") {
+                Stepper(value: $setCount, in: 1...12) {
+                    LabeledContent("Number of sets", value: "\(setCount)")
+                }
+                if exercise.kind == .reps || exercise.kind == .timed {
+                    setupTextField("Weight", text: $weightText, unit: "kg", keyboard: .decimalPad)
+                }
+                switch exercise.kind {
+                case .reps:
+                    setupTextField("Reps", text: $repsText, unit: "reps", keyboard: .numberPad)
+                case .timed:
+                    setupTextField("Duration", text: $durationText, unit: "sec", keyboard: .numberPad)
+                case .distance:
+                    setupTextField("Distance", text: $distanceText, unit: "m", keyboard: .decimalPad)
+                }
+            }
+            Section("Rest") {
+                setupTextField("Rest between sets", text: $restText, unit: "sec", keyboard: .numberPad)
+            }
+        }
+        .navigationTitle("Add to Workout")
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel") { dismiss() }
+            }
+            ToolbarItem(placement: .primaryAction) {
+                Button("Add") {
+                    guard let setup else { return }
+                    onSave(setup)
+                }
+                .disabled(setup == nil)
+            }
+        }
+    }
+
+    private var setup: ExerciseSetup? {
+        guard let restSec = Int(restText), restSec >= 0 else { return nil }
+        guard let targetWeightKg = validOptionalDouble(from: weightText) else { return nil }
+        guard let targetReps = validOptionalInt(from: repsText) else { return nil }
+        guard let targetDurationSec = validOptionalInt(from: durationText) else { return nil }
+        guard let targetDistanceM = validOptionalDouble(from: distanceText) else { return nil }
+
+        return ExerciseSetup(
+            setCount: setCount,
+            targetWeightKg: targetWeightKg,
+            targetReps: targetReps,
+            targetDurationSec: targetDurationSec,
+            targetDistanceM: targetDistanceM,
+            restSec: restSec
+        )
+    }
+
+    @ViewBuilder
+    private func setupTextField(
+        _ title: String,
+        text: Binding<String>,
+        unit: String,
+        keyboard: UIKeyboardType
+    ) -> some View {
+        HStack {
+            Text(title)
+            Spacer()
+            TextField(unit, text: text)
+                .keyboardType(keyboard)
+                .multilineTextAlignment(.trailing)
+                .frame(width: 90)
+            Text(unit)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func validOptionalInt(from text: String) -> Int?? {
+        text.isEmpty ? .some(nil) : Int(text).map(Optional.some)
+    }
+
+    private func validOptionalDouble(from text: String) -> Double?? {
+        text.isEmpty ? .some(nil) : Double(text).map(Optional.some)
     }
 }
