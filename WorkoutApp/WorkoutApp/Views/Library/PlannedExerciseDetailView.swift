@@ -107,13 +107,9 @@ private struct PlannedSetRow: View {
                 }
             }
             if kind == .timed {
-                HStack {
-                    Text("Duration (sec)")
-                    Spacer()
-                    OptionalIntField(
-                        label: "sec",
-                        value: $plannedSet.targetDurationSec
-                    )
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Duration")
+                    OptionalDurationField(value: $plannedSet.targetDurationSec)
                 }
             }
             if kind == .distance {
@@ -130,4 +126,3 @@ private struct PlannedSetRow: View {
         .font(.subheadline)
     }
 }
-

@@ -50,10 +50,9 @@ struct ExerciseDetailView: View {
                         OptionalIntField(label: "reps", value: $defaultTargetReps, width: 90)
                     }
                 case .timed:
-                    HStack {
+                    VStack(alignment: .leading, spacing: 8) {
                         Text("Duration")
-                        Spacer()
-                        OptionalIntField(label: "sec", value: $defaultTargetDurationSec, width: 90)
+                        OptionalDurationField(value: $defaultTargetDurationSec)
                     }
                 case .distance:
                     HStack {
@@ -101,4 +100,3 @@ struct ExerciseDetailView: View {
         }
     }
 }
-

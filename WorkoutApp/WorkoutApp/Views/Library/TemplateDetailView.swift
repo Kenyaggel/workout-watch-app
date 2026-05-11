@@ -169,7 +169,7 @@ private struct AddExerciseSetupView: View {
     @State private var setCount: Int
     @State private var weightText: String
     @State private var repsText: String
-    @State private var durationText: String
+    @State private var targetDurationSec: Int?
     @State private var distanceText: String
     @State private var restText: String
 
@@ -179,7 +179,7 @@ private struct AddExerciseSetupView: View {
         _setCount = State(initialValue: Self.defaultSetCount(for: exercise.kind))
         _weightText = State(initialValue: "")
         _repsText = State(initialValue: String(exercise.defaultTargetReps ?? 10))
-        _durationText = State(initialValue: String(exercise.defaultTargetDurationSec ?? 30))
+        _targetDurationSec = State(initialValue: exercise.defaultTargetDurationSec ?? 30)
         _distanceText = State(initialValue: String(format: "%.4g", exercise.defaultTargetDistanceM ?? 1000))
         _restText = State(initialValue: String(exercise.defaultRestSec))
     }
@@ -201,7 +201,10 @@ private struct AddExerciseSetupView: View {
                 case .reps:
                     setupTextField("Reps", text: $repsText, unit: "reps", keyboard: .numberPad)
                 case .timed:
-                    setupTextField("Duration", text: $durationText, unit: "sec", keyboard: .numberPad)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Duration")
+                        OptionalDurationField(value: $targetDurationSec)
+                    }
                 case .distance:
                     setupTextField("Distance", text: $distanceText, unit: "m", keyboard: .decimalPad)
                 }
@@ -229,7 +232,6 @@ private struct AddExerciseSetupView: View {
         guard let restSec = Int(restText), restSec >= 0 else { return nil }
         guard let targetWeightKg = validOptionalDouble(from: weightText) else { return nil }
         guard let targetReps = validOptionalInt(from: repsText) else { return nil }
-        guard let targetDurationSec = validOptionalInt(from: durationText) else { return nil }
         guard let targetDistanceM = validOptionalDouble(from: distanceText) else { return nil }
 
         return ExerciseSetup(
