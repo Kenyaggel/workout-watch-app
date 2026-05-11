@@ -16,13 +16,17 @@ A watch-first strength workout app. The watch target manages the live workout lo
 - iOS UI lives under `WorkoutApp/WorkoutApp`.
 - iPhone visible language uses "Workouts" for reusable plans, but the model is still `WorkoutTemplate`; avoid schema churn unless explicitly requested.
 - iPhone `Exercise` management owns name, kind, default rest, and kind-specific default target. Weight belongs to workout-specific planned sets, not reusable exercises.
-- Adding an exercise to a workout should go through the fast setup flow that creates one `PlannedExercise` and repeated `PlannedSet` rows.
+- In a template, rest belongs to `PlannedExercise`. `PlannedSet` is for set-specific targets only: weight, reps, duration, and distance.
+- `PlannedExercise.restSec` is optional in storage for existing SwiftData stores; read with `resolvedRestSec` and write concrete values for new/edited planned exercises.
+- Adding an exercise to a workout should go through the fast setup flow that creates one `PlannedExercise` and repeated `PlannedSet` rows with sensible defaults. Reps default to 10, timed duration to 30 seconds, distance to 1000 meters, and distance work starts at one set.
+- Planned exercise rows should navigate with direct destination `NavigationLink`s. Avoid value-based navigation destinations for `PlannedExercise` SwiftData models in the template editor.
 
 ## Build And Test
 
 ```bash
 cd WorkoutCore && swift build
 cd WorkoutCore && swift test
+xcodebuild -project WorkoutApp/WorkoutApp.xcodeproj -scheme WorkoutApp -destination 'generic/platform=iOS' build
 ```
 
 Open the full app in Xcode:
@@ -41,3 +45,4 @@ Use Xcode for watch app build/run workflows.
 - Prefer changing the Swift package for business logic and adding macOS-runnable tests there.
 - Keep watch target changes focused on presentation, interaction, haptics wiring, and HealthKit lifecycle wiring.
 - Keep iPhone authoring changes in the iOS target unless shared model/session behavior truly needs to change.
+- Treat SwiftData schema changes as on-device migrations. New model fields should be optional/resolved or covered by an explicit migration before they are required.

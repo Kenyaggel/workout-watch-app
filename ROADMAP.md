@@ -5,7 +5,7 @@ Where v1 ended and where v2 takes us. Use this as the working plan; tick items o
 ## v1 — what shipped
 
 - Three-mode session loop: **in-set / rest / prep** with wall-clock timers via `TimelineView`.
-- `SessionEngine` finite state machine, fully unit-tested (13/13 green) against an injected `nowProvider`.
+- `SessionEngine` finite state machine, unit-tested against an injected `nowProvider` (15 `SessionEngineTests`; 23 package tests total as of the iPhone template editor refactor).
 - `WorkoutCore` Swift Package with versioned SwiftData schema (`WorkoutSchemaV1`) and a clean recorder/lifecycle protocol split so the package builds on macOS for tests.
 - HealthKit recording on watchOS via `HKWorkoutSession` + `HKLiveWorkoutBuilder`, gated `#if canImport(HealthKit) && os(watchOS)`.
 - One seeded template (Push Day) so the app is usable from launch.
@@ -32,6 +32,9 @@ Five themes, ranked by user value. Each is independently shippable.
 The watch can run workouts but shouldn't create or edit them. Authoring belongs on the phone — bigger screen, real keyboard.
 
 - [x] **iPhone UI foundation**: separate Workouts and Exercises tabs; reusable `Exercise` management; workout detail editor that adds an exercise through a fast set setup flow.
+- [x] **Template editor refactor**: rest now belongs to `PlannedExercise`; `PlannedSet` only stores set targets. Existing iPhone stores migrate safely via optional stored rest plus `resolvedRestSec`.
+- [x] **Template editor navigation fix**: planned exercise rows use direct destination links so one tap opens the weight/reps/rest editor on device.
+- [x] **Default planned sets**: newly picked exercises and newly added sets start with sensible reps/duration/distance defaults and copy prior set targets where possible.
 - **Remaining iPhone UI polish**: rename internal/template-heavy view names only if it becomes worth the churn; add richer editing affordances as needed after real use.
 - **Watch UI**: read-only template picker stays as is; **add a "duplicate & edit on phone" affordance** so users discover the phone editor.
 - **Sync**: `WatchConnectivity` `WCSession` with `transferUserInfo` for templates (small payloads, queued, survives connectivity gaps). Don't use `sendMessage` — it requires both devices reachable.
@@ -118,5 +121,5 @@ These are load-bearing — don't break them.
 - **`HKWorkoutSession` only — no `WKExtendedRuntimeSession`** during an active session.
 - **Don't configure `AVAudioSession`.** Spotify must keep playing.
 - **HealthKit lifecycle**: always `endCollection(...)` *then* `finishWorkout(...)`. Both calls.
-- **SwiftData schema changes go through a new `WorkoutSchemaV2` + `SchemaMigrationPlan`.** Never mutate `WorkoutSchemaV1` in place.
+- **SwiftData schema-breaking changes go through a new `WorkoutSchemaV2` + `SchemaMigrationPlan`.** Lightweight additions still must be migration-safe for real devices. Optional stored fields plus computed resolved values are acceptable when the old store can load cleanly.
 - **No `@Model` types crossing process boundaries.** Always encode to a `Codable` DTO before sending over `WCSession` or saving to a file.

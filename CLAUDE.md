@@ -34,11 +34,14 @@ cd WorkoutCore && swift test --filter SessionEngineTests/testRestAutoExpiredAdva
 # Syntax-check any individual Swift file (works without full build).
 swiftc -parse "WorkoutApp/WorkoutApp Watch App/Views/InSetView.swift"
 
+# Build the iPhone app path, including the embedded watch target.
+xcodebuild -project WorkoutApp/WorkoutApp.xcodeproj -scheme WorkoutApp -destination 'generic/platform=iOS' build
+
 # Open in Xcode
 open WorkoutApp/WorkoutApp.xcodeproj
 ```
 
-The watch app cannot be built from CLI (needs the simulator + provisioning). Build/run via Xcode: ⌘R with an Apple Watch simulator destination.
+Use Xcode for normal device/simulator runs, especially watch workflows. CLI iPhone builds can work when signing/provisioning is available, but watch run/debug still belongs in Xcode.
 
 ## Architecture
 
@@ -54,8 +57,17 @@ Three layers, deliberately separated:
 
 - The iPhone app uses visible "Workouts" language for reusable workout plans, while the underlying SwiftData model remains `WorkoutTemplate` for now.
 - The iPhone `Exercises` tab manages reusable `Exercise` records: name, kind, default rest, and kind-specific default target reps/duration/distance. Do not add default weight to `Exercise`; weight is workout-specific.
+- Template rest is owned by `PlannedExercise`, not by individual `PlannedSet` rows. `PlannedSet` stores only set targets: weight, reps, duration, and distance.
+- `PlannedExercise.restSec` is optional in SwiftData storage so existing on-device stores migrate safely. Read rest through `resolvedRestSec`; write concrete `restSec` values for new or edited planned exercises.
 - Adding an exercise to a workout should create a `PlannedExercise` plus repeated `PlannedSet` rows from a fast setup flow: set count, optional weight, target reps/duration/distance, and rest.
+- New picked exercises start with sensible defaults if the reusable `Exercise` has no target default: 10 reps, 30 seconds, 1000 meters, and one set for distance exercises. The set editor's add button should copy the last set's targets or fall back to these defaults.
+- In workout detail navigation, use direct destination links for `PlannedExerciseDetailView`. Avoid value-based `NavigationLink(value:)` / `navigationDestination(for: PlannedExercise.self)` routing for SwiftData `PlannedExercise`; it produced duplicate/missing destination warnings and delayed navigation on device.
 - Keep watch template execution behavior unchanged unless the task explicitly targets watch sync or watch UI wording.
+
+### SwiftData migration notes
+
+- This app has real on-device stores. New `@Model` attributes must be migration-safe: optional with a computed resolved value, explicitly migrated, or backfilled before they become required.
+- For future schema-breaking changes, add a new versioned schema and migration stage instead of relying on launch-time crashes to expose store mismatches.
 
 ### Recorder/HealthKit decoupling
 
