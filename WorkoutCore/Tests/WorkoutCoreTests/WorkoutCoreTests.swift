@@ -254,4 +254,24 @@ final class SessionEngineTests: XCTestCase {
         XCTAssertEqual(succ?.next, SetCursor(exerciseIndex: 2, setIndex: 0))
         XCTAssertEqual(succ?.crossesExercise, true)
     }
+
+    func testTemplatePlanUsesPlannedExerciseRestForEverySet() {
+        let exercise = Exercise(
+            name: "Bench",
+            kind: .reps,
+            defaultRestSec: 45,
+            defaultTargetReps: 8
+        )
+        let template = WorkoutTemplate(name: "Strength")
+        let plannedExercise = PlannedExercise(orderIndex: 0, exercise: exercise, restSec: 120)
+        let firstSet = PlannedSet(orderIndex: 0, targetWeightKg: 60, targetReps: 8)
+        let secondSet = PlannedSet(orderIndex: 1, targetWeightKg: 60, targetReps: 8)
+
+        plannedExercise.sets = [firstSet, secondSet]
+        template.plannedExercises = [plannedExercise]
+
+        let plan = SessionPlan.from(template: template)
+
+        XCTAssertEqual(plan.exercises.first?.sets.map(\.restSec), [120, 120])
+    }
 }

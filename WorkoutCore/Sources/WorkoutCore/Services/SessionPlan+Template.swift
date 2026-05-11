@@ -2,7 +2,7 @@ import Foundation
 
 public extension SessionPlan {
     /// Builds an immutable session plan from a stored template.
-    /// Resolves rest times: per-set override → exercise default.
+    /// Copies rest from the planned exercise into each executable set.
     static func from(template: WorkoutTemplate) -> SessionPlan {
         let exercises: [SessionPlan.Exercise] = template.orderedExercises.compactMap { plannedEx in
             guard let exercise = plannedEx.exercise else { return nil }
@@ -12,7 +12,7 @@ public extension SessionPlan {
                     targetReps: plannedSet.targetReps,
                     targetDurationSec: plannedSet.targetDurationSec,
                     targetDistanceM: plannedSet.targetDistanceM,
-                    restSec: plannedSet.restOverrideSec ?? exercise.defaultRestSec
+                    restSec: plannedEx.resolvedRestSec
                 )
             }
             return SessionPlan.Exercise(

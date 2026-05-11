@@ -10,14 +10,10 @@ struct PlannedExerciseDetailView: View {
         plannedExercise.exercise?.kind ?? .reps
     }
 
-    private var restBinding: Binding<Int?> {
+    private var restSecBinding: Binding<Int> {
         Binding(
-            get: { plannedExercise.orderedSets.first?.restOverrideSec },
-            set: { newValue in
-                for set in plannedExercise.sets {
-                    set.restOverrideSec = newValue
-                }
-            }
+            get: { plannedExercise.resolvedRestSec },
+            set: { plannedExercise.restSec = $0 }
         )
     }
 
@@ -27,7 +23,7 @@ struct PlannedExerciseDetailView: View {
                 HStack {
                     Text("Rest between sets")
                     Spacer()
-                    OptionalIntField(label: "sec", value: restBinding)
+                    RequiredIntField(label: "sec", value: restSecBinding)
                 }
             }
             Section("Sets") {
@@ -45,11 +41,7 @@ struct PlannedExerciseDetailView: View {
             }
             ToolbarItem(placement: .primaryAction) {
                 Button {
-                    let currentRest = plannedExercise.orderedSets.first?.restOverrideSec
-                    let ps = PlannedSet(
-                        orderIndex: plannedExercise.orderedSets.count,
-                        restOverrideSec: currentRest
-                    )
+                    let ps = nextPlannedSet()
                     ps.plannedExercise = plannedExercise
                     modelContext.insert(ps)
                 } label: {
@@ -57,6 +49,19 @@ struct PlannedExerciseDetailView: View {
                 }
             }
         }
+    }
+
+    private func nextPlannedSet() -> PlannedSet {
+        let orderedSets = plannedExercise.orderedSets
+        let source = orderedSets.last
+        let exercise = plannedExercise.exercise
+        return PlannedSet(
+            orderIndex: orderedSets.count,
+            targetWeightKg: source?.targetWeightKg,
+            targetReps: source?.targetReps ?? exercise?.defaultTargetReps ?? (exerciseKind == .reps ? 10 : nil),
+            targetDurationSec: source?.targetDurationSec ?? exercise?.defaultTargetDurationSec ?? (exerciseKind == .timed ? 30 : nil),
+            targetDistanceM: source?.targetDistanceM ?? exercise?.defaultTargetDistanceM ?? (exerciseKind == .distance ? 1000 : nil)
+        )
     }
 
     private func deleteSets(at offsets: IndexSet) {
@@ -160,6 +165,26 @@ private struct OptionalIntField: View {
             }
             .onChange(of: text) { _, newValue in
                 value = Int(newValue)
+            }
+    }
+}
+
+private struct RequiredIntField: View {
+    let label: String
+    @Binding var value: Int
+    @State private var text: String = ""
+
+    var body: some View {
+        TextField(label, text: $text)
+            .keyboardType(.numberPad)
+            .multilineTextAlignment(.trailing)
+            .frame(width: 80)
+            .onAppear {
+                text = String(value)
+            }
+            .onChange(of: text) { _, newValue in
+                guard let newInt = Int(newValue), newInt >= 0 else { return }
+                value = newInt
             }
     }
 }

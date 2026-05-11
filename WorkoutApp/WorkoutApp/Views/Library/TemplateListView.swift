@@ -15,7 +15,7 @@ struct TemplateListView: View {
                 } label: {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(template.name)
-                        Text("\(template.plannedExercises.count) exercises")
+                        Text(summary(for: template))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -45,5 +45,12 @@ struct TemplateListView: View {
         for index in offsets {
             modelContext.delete(templates[index])
         }
+    }
+
+    private func summary(for template: WorkoutTemplate) -> String {
+        let exercises = template.orderedExercises
+        let exerciseCount = exercises.count
+        let setCount = exercises.reduce(0) { $0 + $1.orderedSets.count }
+        return "\(exerciseCount) exercise\(exerciseCount == 1 ? "" : "s") · \(setCount) set\(setCount == 1 ? "" : "s")"
     }
 }

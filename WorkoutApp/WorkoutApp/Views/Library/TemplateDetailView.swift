@@ -15,7 +15,9 @@ struct TemplateDetailView: View {
             }
             Section {
                 ForEach(template.orderedExercises) { pe in
-                    NavigationLink(value: pe) {
+                    NavigationLink {
+                        PlannedExerciseDetailView(plannedExercise: pe)
+                    } label: {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(pe.exercise?.name ?? "Unknown")
                             Text(summary(for: pe))
@@ -29,9 +31,6 @@ struct TemplateDetailView: View {
             }
         }
         .navigationTitle(template.name)
-        .navigationDestination(for: PlannedExercise.self) { pe in
-            PlannedExerciseDetailView(plannedExercise: pe)
-        }
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
                 EditButton()
@@ -66,7 +65,8 @@ struct TemplateDetailView: View {
     private func addExercise(_ exercise: Exercise, setup: ExerciseSetup) {
         let pe = PlannedExercise(
             orderIndex: template.orderedExercises.count,
-            exercise: exercise
+            exercise: exercise,
+            restSec: setup.restSec
         )
         pe.template = template
         modelContext.insert(pe)
@@ -77,8 +77,7 @@ struct TemplateDetailView: View {
                 targetWeightKg: setup.targetWeightKg,
                 targetReps: exercise.kind == .reps ? setup.targetReps : nil,
                 targetDurationSec: exercise.kind == .timed ? setup.targetDurationSec : nil,
-                targetDistanceM: exercise.kind == .distance ? setup.targetDistanceM : nil,
-                restOverrideSec: setup.restSec
+                targetDistanceM: exercise.kind == .distance ? setup.targetDistanceM : nil
             )
             set.plannedExercise = pe
             modelContext.insert(set)
@@ -115,9 +114,7 @@ struct TemplateDetailView: View {
                 parts.append(String(format: "%.0f m", dist))
             }
         }
-        if let rest = first?.restOverrideSec ?? pe.exercise?.defaultRestSec {
-            parts.append("\(rest)s rest")
-        }
+        parts.append("\(pe.resolvedRestSec)s rest")
 
         return parts.joined(separator: " · ")
     }
@@ -177,11 +174,11 @@ private struct AddExerciseSetupView: View {
     init(exercise: Exercise, onSave: @escaping (ExerciseSetup) -> Void) {
         self.exercise = exercise
         self.onSave = onSave
-        _setCount = State(initialValue: 3)
+        _setCount = State(initialValue: Self.defaultSetCount(for: exercise.kind))
         _weightText = State(initialValue: "")
-        _repsText = State(initialValue: exercise.defaultTargetReps.map(String.init) ?? "")
-        _durationText = State(initialValue: exercise.defaultTargetDurationSec.map(String.init) ?? "")
-        _distanceText = State(initialValue: exercise.defaultTargetDistanceM.map { String(format: "%.4g", $0) } ?? "")
+        _repsText = State(initialValue: String(exercise.defaultTargetReps ?? 10))
+        _durationText = State(initialValue: String(exercise.defaultTargetDurationSec ?? 30))
+        _distanceText = State(initialValue: String(format: "%.4g", exercise.defaultTargetDistanceM ?? 1000))
         _restText = State(initialValue: String(exercise.defaultRestSec))
     }
 
@@ -268,5 +265,14 @@ private struct AddExerciseSetupView: View {
 
     private func validOptionalDouble(from text: String) -> Double?? {
         text.isEmpty ? .some(nil) : Double(text).map(Optional.some)
+    }
+
+    private static func defaultSetCount(for kind: ExerciseKind) -> Int {
+        switch kind {
+        case .reps, .timed:
+            return 3
+        case .distance:
+            return 1
+        }
     }
 }

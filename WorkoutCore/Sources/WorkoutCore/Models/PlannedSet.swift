@@ -9,7 +9,6 @@ public final class PlannedSet {
     public var targetReps: Int?
     public var targetDurationSec: Int?
     public var targetDistanceM: Double?
-    public var restOverrideSec: Int?
     public var plannedExercise: PlannedExercise?
 
     public init(
@@ -18,8 +17,7 @@ public final class PlannedSet {
         targetWeightKg: Double? = nil,
         targetReps: Int? = nil,
         targetDurationSec: Int? = nil,
-        targetDistanceM: Double? = nil,
-        restOverrideSec: Int? = nil
+        targetDistanceM: Double? = nil
     ) {
         self.id = id
         self.orderIndex = orderIndex
@@ -27,6 +25,5 @@ public final class PlannedSet {
         self.targetReps = targetReps
         self.targetDurationSec = targetDurationSec
         self.targetDistanceM = targetDistanceM
-        self.restOverrideSec = restOverrideSec
     }
 }
