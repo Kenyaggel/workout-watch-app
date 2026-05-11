@@ -1,4 +1,5 @@
 import XCTest
+import SwiftData
 @testable import WorkoutCore
 
 @MainActor
@@ -83,6 +84,52 @@ final class SessionEngineTests: XCTestCase {
         }
         XCTAssertEqual(rec.entries.count, 1)
         XCTAssertEqual(rec.entries.first?.weightKg, 50)
+        XCTAssertEqual(rec.entries.first?.rpe, 7)
+    }
+
+    func testCompleteSetWithoutRPERecordsNil() {
+        var t = Date(timeIntervalSince1970: 0)
+        let (engine, rec) = makeEngine { t }
+        engine.start()
+        engine.startNextExercise()
+
+        t = t.addingTimeInterval(30)
+        engine.completeSet(weightKg: 50, reps: 5)
+
+        XCTAssertEqual(rec.entries.count, 1)
+        XCTAssertNil(rec.entries.first?.rpe)
+    }
+
+    func testSwiftDataRecorderPersistsNilRPE() throws {
+        let container = try WorkoutModelContainer.makeShared(inMemory: true)
+        let context = ModelContext(container)
+        let recorder = SwiftDataRecorder(context: context)
+        let plan = SessionPlan(
+            templateName: "Test",
+            exercises: [
+                .init(name: "A", kind: .reps, sets: [
+                    .init(targetWeightKg: 50, targetReps: 5, restSec: 60)
+                ])
+            ]
+        )
+
+        let startedAt = Date(timeIntervalSince1970: 0)
+        let completedAt = Date(timeIntervalSince1970: 30)
+        recorder.sessionStarted(at: startedAt, plan: plan)
+        recorder.setCompleted(.init(
+            cursor: SetCursor(exerciseIndex: 0, setIndex: 0),
+            exerciseName: "A",
+            weightKg: 50,
+            reps: 5,
+            durationSec: nil,
+            distanceM: nil,
+            rpe: nil,
+            completedAt: completedAt
+        ))
+
+        let sets = try context.fetch(FetchDescriptor<PerformedSet>())
+        XCTAssertEqual(sets.count, 1)
+        XCTAssertNil(sets.first?.rpe)
     }
 
     func testCompleteLastSetOfExerciseEntersPrep() {

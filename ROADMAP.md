@@ -23,7 +23,7 @@ These belong at the top of v2 because they're already half-done.
 - [x] **Workout start summary** — after starting a workout, show a summary of the whole plan before the first set: exercises, weights, reps, and set structure.
 - [x] **Exercise transition prep** — show an Up next window before every exercise, including the first exercise, not only between exercises later in the session.
 - [ ] **Timed exercise duration input** — timed exercise setup/editing should use ergonomic hours/minutes/seconds controls instead of forcing raw seconds. Hours should be optional/collapsed so common minute/second entries do not require typing `00` for hours.
-- [ ] **Optional RPE capture** — completing a set should not force RPE entry. Keep RPE available for users who want to log it, store missing RPE as nil, and make later analytics ignore nil values rather than treating them as low effort.
+- [x] **Optional RPE capture** — completing a set should not force RPE entry. Keep RPE available for users who want to log it, store missing RPE as nil, and make later analytics ignore nil values rather than treating them as low effort.
 
 ## v2 themes
 
@@ -101,7 +101,7 @@ Optional — only if the user wants to actually ship.
 3. [x] **Add weight and reps to Up next.** Make prep screens more useful before each set/exercise.
 4. [x] **Workout start summary + first Up next.** Add the full-plan summary after start, then show Up next before the first exercise and every exercise transition.
 5. **Timed exercise duration input.** Replace raw seconds entry with minute/second-first controls and optional hours.
-6. **Optional RPE capture.** Let users finish sets without RPE while preserving optional RPE analytics data.
+6. [x] **Optional RPE capture.** Let users finish sets without RPE while preserving optional RPE analytics data.
 7. **Theme 2: History verification.** Test the existing iPhone History flow with real saved workouts; fix gaps found there.
 8. **Theme 1: iPhone workout editor polish.** WatchConnectivity sync backbone exists; remaining work is real-device sync shakedown plus any editor affordances found during use.
 9. **Theme 3: Recovery UI.** (1 evening once #6 is done — sync-ish skeleton already exists.)

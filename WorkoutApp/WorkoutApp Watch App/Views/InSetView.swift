@@ -10,7 +10,7 @@ struct InSetView: View {
 
     @State private var weightKg: Double = 0
     @State private var reps: Int = 0
-    @State private var rpe: Int = 7
+    @State private var rpe: Int? = nil
 
     /// Visual + crown ownership for the weight row.
     /// `false` → ScrollView owns the crown; weight row appears locked.
@@ -156,7 +156,36 @@ struct InSetView: View {
     }
 
     private var rpeRow: some View {
-        counterRow(label: "RPE", value: rpe, range: 1...10) { rpe = $0 }
+        let displayedRPE = rpe ?? 5
+        let hasRecordedRPE = rpe != nil
+
+        return HStack(spacing: 6) {
+            Text("RPE")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            Text("\(displayedRPE)")
+                .font(.system(size: 28, weight: .semibold, design: .rounded))
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .foregroundStyle(hasRecordedRPE ? .primary : .secondary)
+                .opacity(hasRecordedRPE ? 1 : 0.45)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            stepperButton(systemImage: "minus",
+                          enabled: displayedRPE > 1) {
+                rpe = max(1, displayedRPE - 1)
+            }
+            stepperButton(systemImage: "plus",
+                          enabled: displayedRPE < 10) {
+                rpe = min(10, displayedRPE + 1)
+            }
+            stepperButton(systemImage: hasRecordedRPE ? "xmark" : "checkmark",
+                          enabled: true,
+                          width: 30) {
+                rpe = hasRecordedRPE ? nil : displayedRPE
+            }
+        }
+        .padding(.vertical, 6)
     }
 
     /// Compact +/- row that doesn't auto-claim the Digital Crown.
@@ -194,12 +223,13 @@ struct InSetView: View {
     private func stepperButton(
         systemImage: String,
         enabled: Bool,
+        width: CGFloat = 36,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
             Image(systemName: systemImage)
                 .font(.body.weight(.bold))
-                .frame(width: 36, height: 34)
+                .frame(width: width, height: 34)
                 .background(
                     RoundedRectangle(cornerRadius: 6)
                         .fill(Color.white.opacity(enabled ? 0.18 : 0.06))
@@ -229,6 +259,7 @@ struct InSetView: View {
     }
 
     private func primeFromTargets() {
+        rpe = nil
         guard let set else { return }
         if let w = set.targetWeightKg { weightKg = w }
         if let r = set.targetReps { reps = r }
