@@ -64,8 +64,4 @@ private struct SessionRowView: View {
             Text("In progress")
         }
     }
-
-    private func formattedDate(_ date: Date) -> String {
-        date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())
-    }
 }

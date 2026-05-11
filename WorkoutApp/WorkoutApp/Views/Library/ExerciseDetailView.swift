@@ -47,19 +47,19 @@ struct ExerciseDetailView: View {
                     HStack {
                         Text("Reps")
                         Spacer()
-                        ExerciseOptionalIntField(label: "reps", value: $defaultTargetReps)
+                        OptionalIntField(label: "reps", value: $defaultTargetReps, width: 90)
                     }
                 case .timed:
                     HStack {
                         Text("Duration")
                         Spacer()
-                        ExerciseOptionalIntField(label: "sec", value: $defaultTargetDurationSec)
+                        OptionalIntField(label: "sec", value: $defaultTargetDurationSec, width: 90)
                     }
                 case .distance:
                     HStack {
                         Text("Distance")
                         Spacer()
-                        ExerciseOptionalDoubleField(label: "m", value: $defaultTargetDistanceM)
+                        OptionalDoubleField(label: "m", value: $defaultTargetDistanceM, width: 90)
                     }
                 }
             }
@@ -102,40 +102,3 @@ struct ExerciseDetailView: View {
     }
 }
 
-private struct ExerciseOptionalIntField: View {
-    let label: String
-    @Binding var value: Int?
-    @State private var text: String = ""
-
-    var body: some View {
-        TextField(label, text: $text)
-            .keyboardType(.numberPad)
-            .multilineTextAlignment(.trailing)
-            .frame(width: 90)
-            .onAppear {
-                if let value { text = String(value) }
-            }
-            .onChange(of: text) { _, newValue in
-                value = newValue.isEmpty ? nil : Int(newValue)
-            }
-    }
-}
-
-private struct ExerciseOptionalDoubleField: View {
-    let label: String
-    @Binding var value: Double?
-    @State private var text: String = ""
-
-    var body: some View {
-        TextField(label, text: $text)
-            .keyboardType(.decimalPad)
-            .multilineTextAlignment(.trailing)
-            .frame(width: 90)
-            .onAppear {
-                if let value { text = String(format: "%.4g", value) }
-            }
-            .onChange(of: text) { _, newValue in
-                value = newValue.isEmpty ? nil : Double(newValue)
-            }
-    }
-}

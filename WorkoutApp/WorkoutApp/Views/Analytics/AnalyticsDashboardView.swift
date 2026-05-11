@@ -7,11 +7,16 @@ struct AnalyticsDashboardView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Exercise.name) private var exercises: [Exercise]
 
-    @State private var selectedExerciseName: String = ""
+    @State private var selectedExerciseID: PersistentIdentifier?
     @State private var weeklyVolumes: [WeeklyVolume] = []
     @State private var frequencyPoints: [FrequencyPoint] = []
     @State private var progressionPoints: [ExerciseDataPoint] = []
     @State private var e1rmPoints: [E1RMDataPoint] = []
+
+    private var selectedExercise: Exercise? {
+        guard let selectedExerciseID else { return nil }
+        return exercises.first { $0.persistentModelID == selectedExerciseID }
+    }
 
     var body: some View {
         ScrollView {
@@ -29,15 +34,22 @@ struct AnalyticsDashboardView: View {
             weeklyVolumes = engine.weeklyVolume(last: 12)
             frequencyPoints = engine.workoutFrequency(last: 3)
         }
-        .task(id: selectedExerciseName) {
-            guard !selectedExerciseName.isEmpty else { return }
+        .task(id: selectedExerciseID) {
+            guard let name = selectedExercise?.name else {
+                progressionPoints = []
+                e1rmPoints = []
+                return
+            }
             let engine = AnalyticsEngine(modelContext: modelContext)
-            progressionPoints = engine.exerciseProgression(exerciseName: selectedExerciseName, last: 20)
-            e1rmPoints = engine.estimated1RM(exerciseName: selectedExerciseName, last: 20)
+            progressionPoints = engine.exerciseProgression(exerciseName: name, last: 20)
+            e1rmPoints = engine.estimated1RM(exerciseName: name, last: 20)
         }
         .onChange(of: exercises) { _, newValue in
-            if selectedExerciseName.isEmpty, let first = newValue.first {
-                selectedExerciseName = first.name
+            if selectedExerciseID == nil, let first = newValue.first {
+                selectedExerciseID = first.persistentModelID
+            } else if let id = selectedExerciseID,
+                      !newValue.contains(where: { $0.persistentModelID == id }) {
+                selectedExerciseID = newValue.first?.persistentModelID
             }
         }
     }
@@ -122,9 +134,9 @@ struct AnalyticsDashboardView: View {
                     .foregroundStyle(.secondary)
                     .padding(.horizontal)
             } else {
-                Picker("Exercise", selection: $selectedExerciseName) {
+                Picker("Exercise", selection: $selectedExerciseID) {
                     ForEach(exercises, id: \.persistentModelID) { exercise in
-                        Text(exercise.name).tag(exercise.name)
+                        Text(exercise.name).tag(exercise.persistentModelID as PersistentIdentifier?)
                     }
                 }
                 .pickerStyle(.menu)
@@ -227,7 +239,7 @@ struct AnalyticsDashboardView: View {
     }
     .modelContainer(
         try! ModelContainer(
-            for: Schema(versionedSchema: WorkoutSchemaV1.self),
+            for: Schema(versionedSchema: WorkoutSchemaV2.self),
             configurations: [ModelConfiguration(isStoredInMemoryOnly: true)]
         )
     )

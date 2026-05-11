@@ -274,4 +274,36 @@ final class SessionEngineTests: XCTestCase {
 
         XCTAssertEqual(plan.exercises.first?.sets.map(\.restSec), [120, 120])
     }
+
+    func testLegacyNilRestSecFallsBackToExerciseDefault() {
+        let exercise = Exercise(
+            name: "Squat",
+            kind: .reps,
+            defaultRestSec: 75,
+            defaultTargetReps: 5
+        )
+        let template = WorkoutTemplate(name: "Strength")
+        let plannedExercise = PlannedExercise(orderIndex: 0, exercise: exercise, restSec: 100)
+        // Simulate a row that survived migration without a per-exercise rest:
+        // the SwiftData store can hold restSec == nil even though the init
+        // path normalizes the value. resolvedRestSec must paper over it.
+        plannedExercise.restSec = nil
+        let set = PlannedSet(orderIndex: 0, targetWeightKg: 80, targetReps: 5)
+        plannedExercise.sets = [set]
+        template.plannedExercises = [plannedExercise]
+
+        XCTAssertNil(plannedExercise.restSec)
+        XCTAssertEqual(plannedExercise.resolvedRestSec, 75)
+
+        let plan = SessionPlan.from(template: template)
+        XCTAssertEqual(plan.exercises.first?.sets.map(\.restSec), [75])
+    }
+
+    func testLegacyNilRestSecWithNoExerciseFallsBackTo90() {
+        let plannedExercise = PlannedExercise(orderIndex: 0)
+        plannedExercise.restSec = nil
+        plannedExercise.exercise = nil
+
+        XCTAssertEqual(plannedExercise.resolvedRestSec, 90)
+    }
 }

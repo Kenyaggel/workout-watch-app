@@ -6,3 +6,7 @@ func formatDuration(_ start: Date, _ end: Date) -> String {
     if minutes < 60 { return "\(minutes)m" }
     return "\(minutes / 60)h \(minutes % 60)m"
 }
+
+func formattedDate(_ date: Date) -> String {
+    date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())
+}

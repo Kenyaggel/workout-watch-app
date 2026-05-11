@@ -9,7 +9,7 @@ struct SessionDetailView: View {
 
         List {
             ForEach(groups, id: \.exerciseIndex) { group in
-                Section(header: ExerciseSectionHeader(group: group, session: session)) {
+                Section(header: ExerciseSectionHeader(group: group)) {
                     ForEach(group.sets.sorted { $0.setIndex < $1.setIndex }, id: \.id) { set in
                         SetRowView(set: set, session: session)
                     }
@@ -58,7 +58,6 @@ private func exerciseGroups(from sets: [PerformedSet]) -> [ExerciseGroup] {
 
 private struct ExerciseSectionHeader: View {
     let group: ExerciseGroup
-    let session: WorkoutSession
 
     var body: some View {
         HStack {
@@ -167,8 +166,3 @@ private struct SetRowView: View {
     }
 }
 
-// MARK: - Helpers
-
-private func formattedDate(_ date: Date) -> String {
-    date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())
-}
