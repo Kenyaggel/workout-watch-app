@@ -319,7 +319,44 @@ final class SessionEngineTests: XCTestCase {
 
         let plan = SessionPlan.from(template: template)
 
+        XCTAssertEqual(plan.templateID, template.id)
         XCTAssertEqual(plan.exercises.first?.sets.map(\.restSec), [120, 120])
+    }
+
+    func testSwiftDataRecorderLinksTemplateAndKeepsCompletedSessionAvailable() throws {
+        let container = try WorkoutModelContainer.makeShared(inMemory: true)
+        let context = ModelContext(container)
+        let exercise = Exercise(
+            name: "Bench",
+            kind: .reps,
+            defaultRestSec: 90,
+            defaultTargetReps: 8
+        )
+        context.insert(exercise)
+
+        let template = WorkoutTemplate(name: "Push")
+        context.insert(template)
+
+        let plannedExercise = PlannedExercise(orderIndex: 0, exercise: exercise, restSec: 90)
+        plannedExercise.template = template
+        context.insert(plannedExercise)
+
+        let plannedSet = PlannedSet(orderIndex: 0, targetWeightKg: 80, targetReps: 8)
+        plannedSet.plannedExercise = plannedExercise
+        context.insert(plannedSet)
+        try context.save()
+
+        let recorder = SwiftDataRecorder(context: context)
+        let plan = SessionPlan.from(template: template)
+        let startedAt = Date(timeIntervalSince1970: 0)
+        let endedAt = Date(timeIntervalSince1970: 600)
+
+        recorder.sessionStarted(at: startedAt, plan: plan)
+        recorder.sessionEnded(at: endedAt)
+
+        let completedSession = try XCTUnwrap(recorder.currentSession)
+        XCTAssertEqual(completedSession.template?.id, template.id)
+        XCTAssertEqual(completedSession.endedAt, endedAt)
     }
 
     func testLegacyNilRestSecFallsBackToExerciseDefault() {

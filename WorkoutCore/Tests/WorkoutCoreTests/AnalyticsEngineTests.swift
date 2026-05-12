@@ -174,6 +174,57 @@ final class AnalyticsEngineTests: XCTestCase {
         XCTAssertEqual(points.count, 3, "Should return only the last 3 sessions")
     }
 
+    func testExerciseAnalyticsKeepsSameDaySessionsSeparate() throws {
+        let ctx = try makeContext()
+
+        let cal = Calendar.current
+        let day = cal.startOfDay(for: Date()).addingTimeInterval(12 * 60 * 60)
+        let firstWorkout = WorkoutSession(startedAt: day, templateName: "Push")
+        let secondWorkout = WorkoutSession(
+            startedAt: day.addingTimeInterval(2 * 60 * 60),
+            templateName: "Push"
+        )
+        ctx.insert(firstWorkout)
+        ctx.insert(secondWorkout)
+
+        let firstSet = PerformedSet(
+            orderIndex: 0,
+            exerciseName: "Shoulder Press",
+            exerciseIndex: 0,
+            setIndex: 0,
+            weightKg: 70,
+            reps: 3,
+            completedAt: day.addingTimeInterval(60)
+        )
+        firstSet.session = firstWorkout
+        ctx.insert(firstSet)
+
+        let secondSet = PerformedSet(
+            orderIndex: 0,
+            exerciseName: "Shoulder Press",
+            exerciseIndex: 0,
+            setIndex: 0,
+            weightKg: 40,
+            reps: 3,
+            completedAt: secondWorkout.startedAt.addingTimeInterval(60)
+        )
+        secondSet.session = secondWorkout
+        ctx.insert(secondSet)
+
+        try ctx.save()
+
+        let analytics = AnalyticsEngine(modelContext: ctx)
+            .exerciseAnalytics(name: "Shoulder Press", last: 20)
+
+        XCTAssertEqual(analytics.progression.count, 2)
+        XCTAssertEqual(analytics.progression.map(\.maxWeightKg), [70, 40])
+        XCTAssertEqual(analytics.progression.map(\.sessionDate), [
+            firstWorkout.startedAt,
+            secondWorkout.startedAt
+        ])
+        XCTAssertEqual(analytics.e1rm.count, 2)
+    }
+
     // MARK: - workoutFrequency
 
     func testWorkoutFrequencyCountsPerWeek() throws {

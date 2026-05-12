@@ -8,9 +8,12 @@ import WatchConnectivity
 public final class WatchConnectivityManager: NSObject, ObservableObject {
     @Published public private(set) var lastReceivedTemplateSyncAt: Date?
     @Published public private(set) var lastSentTemplateSyncAt: Date?
+    @Published public private(set) var lastReceivedSessionSyncAt: Date?
+    @Published public private(set) var lastSentSessionSyncAt: Date?
 
     private enum UserInfoKey {
         static let templateSnapshot = "workoutTemplateSnapshot.v1"
+        static let sessionSnapshot = "workoutSessionSnapshot.v1"
     }
 
     private let modelContainer: ModelContainer
@@ -18,6 +21,7 @@ public final class WatchConnectivityManager: NSObject, ObservableObject {
     private let decoder = JSONDecoder()
     private var modelContext: ModelContext?
     private var pendingSnapshot: TemplateSyncSnapshot?
+    private var pendingSessionSnapshots: [SessionSyncSnapshot] = []
     private var lastSentSnapshot: TemplateSyncSnapshot?
 
     public init(modelContainer: ModelContainer) {
@@ -35,6 +39,7 @@ public final class WatchConnectivityManager: NSObject, ObservableObject {
         session.delegate = self
         session.activate()
         flushPendingSnapshotIfPossible()
+        flushPendingSessionSnapshotsIfPossible()
     }
 
     @MainActor
@@ -44,6 +49,15 @@ public final class WatchConnectivityManager: NSObject, ObservableObject {
         guard snapshot != lastSentSnapshot else { return }
         pendingSnapshot = snapshot
         flushPendingSnapshotIfPossible()
+        #endif
+    }
+
+    @MainActor
+    public func sendSessionSnapshot(session: WorkoutSession, templateID: UUID? = nil) {
+        #if os(watchOS)
+        let snapshot = SessionSyncSnapshot(session: session, templateID: templateID)
+        pendingSessionSnapshots.append(snapshot)
+        flushPendingSessionSnapshotsIfPossible()
         #endif
     }
 
@@ -75,6 +89,32 @@ public final class WatchConnectivityManager: NSObject, ObservableObject {
     }
 
     @MainActor
+    private func flushPendingSessionSnapshotsIfPossible() {
+        #if os(watchOS)
+        guard
+            !pendingSessionSnapshots.isEmpty,
+            WCSession.isSupported()
+        else { return }
+
+        let session = WCSession.default
+        guard session.activationState == .activated else { return }
+
+        let snapshots = pendingSessionSnapshots
+        pendingSessionSnapshots.removeAll()
+
+        for snapshot in snapshots {
+            do {
+                let data = try encoder.encode(snapshot)
+                session.transferUserInfo([UserInfoKey.sessionSnapshot: data])
+                lastSentSessionSyncAt = Date()
+            } catch {
+                assertionFailure("Failed to encode workout session snapshot: \(error)")
+            }
+        }
+        #endif
+    }
+
+    @MainActor
     private func receiveTemplateSnapshot(from userInfo: [String: Any]) {
         #if os(watchOS)
         guard let data = userInfo[UserInfoKey.templateSnapshot] as? Data else { return }
@@ -89,6 +129,22 @@ public final class WatchConnectivityManager: NSObject, ObservableObject {
         }
         #endif
     }
+
+    @MainActor
+    private func receiveSessionSnapshot(from userInfo: [String: Any]) {
+        #if os(iOS)
+        guard let data = userInfo[UserInfoKey.sessionSnapshot] as? Data else { return }
+        do {
+            let snapshot = try decoder.decode(SessionSyncSnapshot.self, from: data)
+            let context = modelContext ?? ModelContext(modelContainer)
+            modelContext = context
+            try SessionSyncImporter.upsert(snapshot, in: context)
+            lastReceivedSessionSyncAt = Date()
+        } catch {
+            assertionFailure("Failed to import workout session snapshot: \(error)")
+        }
+        #endif
+    }
 }
 
 extension WatchConnectivityManager: WCSessionDelegate {
@@ -99,6 +155,7 @@ extension WatchConnectivityManager: WCSessionDelegate {
     ) {
         Task { @MainActor in
             self.flushPendingSnapshotIfPossible()
+            self.flushPendingSessionSnapshotsIfPossible()
         }
     }
 
@@ -108,6 +165,7 @@ extension WatchConnectivityManager: WCSessionDelegate {
     ) {
         Task { @MainActor in
             self.receiveTemplateSnapshot(from: userInfo)
+            self.receiveSessionSnapshot(from: userInfo)
         }
     }
 
@@ -123,6 +181,8 @@ extension WatchConnectivityManager: WCSessionDelegate {
 public final class WatchConnectivityManager: ObservableObject {
     @Published public private(set) var lastReceivedTemplateSyncAt: Date?
     @Published public private(set) var lastSentTemplateSyncAt: Date?
+    @Published public private(set) var lastReceivedSessionSyncAt: Date?
+    @Published public private(set) var lastSentSessionSyncAt: Date?
 
     public init(modelContainer: ModelContainer) {}
 
@@ -131,5 +191,8 @@ public final class WatchConnectivityManager: ObservableObject {
 
     @MainActor
     public func sendTemplateSnapshot(templates: [WorkoutTemplate]) {}
+
+    @MainActor
+    public func sendSessionSnapshot(session: WorkoutSession, templateID: UUID? = nil) {}
 }
 #endif

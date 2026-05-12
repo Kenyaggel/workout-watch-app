@@ -23,7 +23,7 @@ struct WorkoutAppApp: App {
 
     var body: some Scene {
         WindowGroup {
-            TemplateListView()
+            WatchHomeView()
                 .environmentObject(watchConnectivity)
                 .task {
                     watchConnectivity.activate()

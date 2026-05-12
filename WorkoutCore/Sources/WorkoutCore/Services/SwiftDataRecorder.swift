@@ -5,6 +5,7 @@ import SwiftData
 public final class SwiftDataRecorder: SessionRecorder {
     private let context: ModelContext
     private var session: WorkoutSession?
+    private var isRecording = false
     private var orderCounter = 0
 
     public init(context: ModelContext) {
@@ -14,15 +15,20 @@ public final class SwiftDataRecorder: SessionRecorder {
     public var currentSession: WorkoutSession? { session }
 
     public func sessionStarted(at: Date, plan: SessionPlan) {
-        let new = WorkoutSession(startedAt: at, templateName: plan.templateName)
+        let new = WorkoutSession(
+            startedAt: at,
+            templateName: plan.templateName,
+            template: template(matching: plan.templateID)
+        )
         context.insert(new)
         self.session = new
+        self.isRecording = true
         self.orderCounter = 0
         try? context.save()
     }
 
     public func setCompleted(_ entry: CompletedSetEntry) {
-        guard let session else { return }
+        guard isRecording, let session else { return }
         let performed = PerformedSet(
             orderIndex: orderCounter,
             exerciseName: entry.exerciseName,
@@ -43,7 +49,15 @@ public final class SwiftDataRecorder: SessionRecorder {
 
     public func sessionEnded(at: Date) {
         session?.endedAt = at
+        isRecording = false
         try? context.save()
-        session = nil
+    }
+
+    private func template(matching id: UUID?) -> WorkoutTemplate? {
+        guard let id else { return nil }
+        let descriptor = FetchDescriptor<WorkoutTemplate>(
+            predicate: #Predicate { $0.id == id }
+        )
+        return (try? context.fetch(descriptor))?.first
     }
 }

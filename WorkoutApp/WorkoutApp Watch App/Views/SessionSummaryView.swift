@@ -6,8 +6,7 @@ struct SessionSummaryView: View {
     let onDone: () -> Void
 
     private var durationString: String {
-        guard let session, let end = session.endedAt else { return "—" }
-        let secs = Int(end.timeIntervalSince(session.startedAt))
+        guard let secs = session?.durationSec else { return "—" }
         let m = secs / 60, s = secs % 60
         return String(format: "%dm %02ds", m, s)
     }
@@ -19,6 +18,7 @@ struct SessionSummaryView: View {
                 if let session {
                     LabelRow(label: "Template", value: session.templateName)
                     LabelRow(label: "Sets", value: "\(session.performedSets.count)")
+                    LabelRow(label: "Volume", value: volumeString(for: session))
                     LabelRow(label: "Duration", value: durationString)
                 }
                 Button(action: onDone) {
@@ -29,6 +29,14 @@ struct SessionSummaryView: View {
             }
             .padding(.horizontal, 6)
         }
+    }
+
+    private func volumeString(for session: WorkoutSession) -> String {
+        let volume = session.totalVolumeKg
+        if volume.rounded() == volume {
+            return String(format: "%.0f kg", volume)
+        }
+        return String(format: "%.1f kg", volume)
     }
 }
 

@@ -21,6 +21,6 @@ public extension SessionPlan {
                 sets: sets
             )
         }
-        return SessionPlan(templateName: template.name, exercises: exercises)
+        return SessionPlan(templateID: template.id, templateName: template.name, exercises: exercises)
     }
 }

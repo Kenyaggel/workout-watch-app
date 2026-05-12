@@ -8,11 +8,14 @@ struct ActiveSessionView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Environment(\.isLuminanceReduced) private var isLuminanceReduced
+    @EnvironmentObject private var watchConnectivity: WatchConnectivityManager
 
     @State private var engine: SessionEngine?
     @State private var recorder: SwiftDataRecorder?
     @State private var lifecycle: any WorkoutLifecycle = makeLifecycle()
     @State private var hasStarted = false
+    @State private var didFinishLifecycle = false
+    @State private var didSyncCompletedSession = false
 
     var body: some View {
         Group {
@@ -56,9 +59,13 @@ struct ActiveSessionView: View {
                 startedAt: startedAt,
                 isLuminanceReduced: isLuminanceReduced
             )
-        case .complete:
+        case let .complete(endedAt):
             SessionSummaryView(session: recorder?.currentSession) {
-                dismiss()
+                Task { await finishAndDismiss(endedAt: endedAt) }
+            }
+            .task {
+                await finishCompletedWorkoutIfNeeded(endedAt: endedAt)
+                syncCompletedSessionIfNeeded()
             }
         }
     }
@@ -84,8 +91,32 @@ struct ActiveSessionView: View {
 
     private func endWorkout() async {
         engine?.endWorkout()
-        _ = try? await lifecycle.endWorkout(at: Date())
+        await finishCompletedWorkoutIfNeeded(endedAt: Date())
+        syncCompletedSessionIfNeeded()
         dismiss()
+    }
+
+    private func finishAndDismiss(endedAt: Date) async {
+        await finishCompletedWorkoutIfNeeded(endedAt: endedAt)
+        syncCompletedSessionIfNeeded()
+        dismiss()
+    }
+
+    private func finishCompletedWorkoutIfNeeded(endedAt: Date) async {
+        guard !didFinishLifecycle else { return }
+        didFinishLifecycle = true
+        _ = try? await lifecycle.endWorkout(at: endedAt)
+    }
+
+    private func syncCompletedSessionIfNeeded() {
+        guard
+            !didSyncCompletedSession,
+            let session = recorder?.currentSession,
+            session.endedAt != nil
+        else { return }
+
+        didSyncCompletedSession = true
+        watchConnectivity.sendSessionSnapshot(session: session, templateID: plan.templateID)
     }
 }
 

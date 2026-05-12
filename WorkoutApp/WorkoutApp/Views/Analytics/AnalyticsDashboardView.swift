@@ -6,6 +6,8 @@ import WorkoutCore
 struct AnalyticsDashboardView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Exercise.name) private var exercises: [Exercise]
+    @Query(sort: \WorkoutSession.startedAt, order: .reverse) private var sessions: [WorkoutSession]
+    @Query(sort: \PerformedSet.completedAt, order: .reverse) private var performedSets: [PerformedSet]
 
     @State private var selectedExerciseID: PersistentIdentifier?
     @State private var weeklyVolumes: [WeeklyVolume] = []
@@ -16,6 +18,34 @@ struct AnalyticsDashboardView: View {
     private var selectedExercise: Exercise? {
         guard let selectedExerciseID else { return nil }
         return exercises.first { $0.persistentModelID == selectedExerciseID }
+    }
+
+    private var exerciseLibraryVersion: [ExerciseVersion] {
+        exercises.map { ExerciseVersion(id: $0.id, name: $0.name) }
+    }
+
+    private var analyticsDataVersion: AnalyticsDataVersion {
+        AnalyticsDataVersion(
+            sessions: sessions.map {
+                SessionVersion(
+                    id: $0.id,
+                    startedAt: $0.startedAt,
+                    endedAt: $0.endedAt,
+                    templateName: $0.templateName
+                )
+            },
+            performedSets: performedSets.map {
+                PerformedSetVersion(
+                    id: $0.id,
+                    exerciseName: $0.exerciseName,
+                    weightKg: $0.weightKg,
+                    reps: $0.reps,
+                    durationSec: $0.durationSec,
+                    distanceM: $0.distanceM,
+                    completedAt: $0.completedAt
+                )
+            }
+        )
     }
 
     var body: some View {
@@ -30,28 +60,17 @@ struct AnalyticsDashboardView: View {
         }
         .navigationTitle("Analytics")
         .task {
-            let engine = AnalyticsEngine(modelContext: modelContext)
-            weeklyVolumes = engine.weeklyVolume(last: 12)
-            frequencyPoints = engine.workoutFrequency(last: 3)
+            refreshAllAnalytics()
         }
-        .task(id: selectedExerciseID) {
-            guard let name = selectedExercise?.name else {
-                progressionPoints = []
-                e1rmPoints = []
-                return
-            }
-            let analytics = AnalyticsEngine(modelContext: modelContext)
-                .exerciseAnalytics(name: name, last: 20)
-            progressionPoints = analytics.progression
-            e1rmPoints = analytics.e1rm
+        .onChange(of: selectedExerciseID) { _, _ in
+            refreshExerciseAnalytics()
         }
-        .onChange(of: exercises) { _, newValue in
-            if selectedExerciseID == nil, let first = newValue.first {
-                selectedExerciseID = first.persistentModelID
-            } else if let id = selectedExerciseID,
-                      !newValue.contains(where: { $0.persistentModelID == id }) {
-                selectedExerciseID = newValue.first?.persistentModelID
-            }
+        .onChange(of: analyticsDataVersion) { _, _ in
+            refreshAllAnalytics()
+        }
+        .onChange(of: exerciseLibraryVersion) { _, _ in
+            ensureSelectedExercise()
+            refreshExerciseAnalytics()
         }
     }
 
@@ -232,6 +251,66 @@ struct AnalyticsDashboardView: View {
             .frame(maxWidth: .infinity, minHeight: 160)
             .padding(.horizontal)
     }
+
+    private func ensureSelectedExercise() {
+        if let selectedExerciseID,
+           exercises.contains(where: { $0.persistentModelID == selectedExerciseID }) {
+            return
+        }
+        selectedExerciseID = exercises.first?.persistentModelID
+    }
+
+    private func refreshAllAnalytics() {
+        ensureSelectedExercise()
+        refreshOverviewAnalytics()
+        refreshExerciseAnalytics()
+    }
+
+    private func refreshOverviewAnalytics() {
+        let engine = AnalyticsEngine(modelContext: modelContext)
+        weeklyVolumes = engine.weeklyVolume(last: 12)
+        frequencyPoints = engine.workoutFrequency(last: 3)
+    }
+
+    private func refreshExerciseAnalytics() {
+        guard let name = selectedExercise?.name else {
+            progressionPoints = []
+            e1rmPoints = []
+            return
+        }
+
+        let analytics = AnalyticsEngine(modelContext: modelContext)
+            .exerciseAnalytics(name: name, last: 20)
+        progressionPoints = analytics.progression
+        e1rmPoints = analytics.e1rm
+    }
+}
+
+private struct ExerciseVersion: Equatable {
+    let id: UUID
+    let name: String
+}
+
+private struct AnalyticsDataVersion: Equatable {
+    let sessions: [SessionVersion]
+    let performedSets: [PerformedSetVersion]
+}
+
+private struct SessionVersion: Equatable {
+    let id: UUID
+    let startedAt: Date
+    let endedAt: Date?
+    let templateName: String
+}
+
+private struct PerformedSetVersion: Equatable {
+    let id: UUID
+    let exerciseName: String
+    let weightKg: Double?
+    let reps: Int?
+    let durationSec: Int?
+    let distanceM: Double?
+    let completedAt: Date
 }
 
 #Preview {

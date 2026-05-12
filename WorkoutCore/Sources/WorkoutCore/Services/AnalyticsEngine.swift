@@ -46,7 +46,7 @@ public struct AnalyticsEngine {
     // MARK: - Exercise Progression
 
     /// Fetch PerformedSets filtered by exerciseName with reps > 0 and weightKg not nil,
-    /// group by session.startedAt calendar day, per session take max weightKg and sum volume,
+    /// group by workout session, per session take max weightKg and sum volume,
     /// return last N sessions sorted ascending by sessionDate.
     public func exerciseProgression(exerciseName: String, last sessions: Int) -> [ExerciseDataPoint] {
         exerciseAnalytics(name: exerciseName, last: sessions).progression
@@ -57,22 +57,22 @@ public struct AnalyticsEngine {
     /// Use this instead of calling `exerciseProgression` and `estimated1RM` separately when
     /// you need both — it cuts the fetch and grouping work in half.
     public func exerciseAnalytics(name: String, last sessions: Int) -> ExerciseAnalytics {
-        let byDay = groupedSetsByDay(exerciseName: name, last: sessions)
+        let bySession = groupedSetsBySession(exerciseName: name, last: sessions)
 
-        let progression = byDay.map { (day, daySets) -> ExerciseDataPoint in
-            let maxWeight = daySets.compactMap(\.weightKg).max() ?? 0
-            let totalVolume = daySets.reduce(0.0) { acc, s in
+        let progression = bySession.map { (sessionDate, sessionSets) -> ExerciseDataPoint in
+            let maxWeight = sessionSets.compactMap(\.weightKg).max() ?? 0
+            let totalVolume = sessionSets.reduce(0.0) { acc, s in
                 acc + (s.weightKg ?? 0) * Double(s.reps ?? 0)
             }
-            return ExerciseDataPoint(sessionDate: day, maxWeightKg: maxWeight, totalVolumeKg: totalVolume)
+            return ExerciseDataPoint(sessionDate: sessionDate, maxWeightKg: maxWeight, totalVolumeKg: totalVolume)
         }
         .sorted { $0.sessionDate < $1.sessionDate }
 
-        let e1rm = byDay.map { (day, daySets) -> E1RMDataPoint in
-            let maxE1rm = daySets.map { s in
+        let e1rm = bySession.map { (sessionDate, sessionSets) -> E1RMDataPoint in
+            let maxE1rm = sessionSets.map { s in
                 (s.weightKg ?? 0) * (1.0 + Double(s.reps ?? 0) / 30.0)
             }.max() ?? 0
-            return E1RMDataPoint(sessionDate: day, estimatedMax: maxE1rm)
+            return E1RMDataPoint(sessionDate: sessionDate, estimatedMax: maxE1rm)
         }
         .sorted { $0.sessionDate < $1.sessionDate }
 
@@ -82,7 +82,7 @@ public struct AnalyticsEngine {
         )
     }
 
-    private func groupedSetsByDay(exerciseName: String, last sessions: Int) -> [Date: [PerformedSet]] {
+    private func groupedSetsBySession(exerciseName: String, last sessions: Int) -> [Date: [PerformedSet]] {
         let cal = Calendar.current
         let now = Date()
         // Conservative date lower-bound: 60 days per requested session keeps the fetch bounded
@@ -105,13 +105,12 @@ public struct AnalyticsEngine {
         // SwiftData #Predicate cannot express Int? > 0 comparisons — filter in Swift
         let filtered = sets.filter { ($0.reps ?? 0) > 0 }
 
-        var byDay: [Date: [PerformedSet]] = [:]
+        var bySession: [Date: [PerformedSet]] = [:]
         for set in filtered {
-            let anchor = set.session?.startedAt ?? set.completedAt
-            guard let dayStart = cal.dateInterval(of: .day, for: anchor)?.start else { continue }
-            byDay[dayStart, default: []].append(set)
+            let sessionAnchor = set.session?.startedAt ?? set.completedAt
+            bySession[sessionAnchor, default: []].append(set)
         }
-        return byDay
+        return bySession
     }
 
     // MARK: - Workout Frequency
@@ -149,7 +148,7 @@ public struct AnalyticsEngine {
     // MARK: - Estimated 1RM
 
     /// Fetch PerformedSets for exercise with non-nil weightKg and reps > 0,
-    /// group by session day, apply Epley formula weight * (1 + reps / 30.0) to each set,
+    /// group by workout session, apply Epley formula weight * (1 + reps / 30.0) to each set,
     /// take max e1RM per session, return last N sessions sorted ascending.
     public func estimated1RM(exerciseName: String, last sessions: Int) -> [E1RMDataPoint] {
         exerciseAnalytics(name: exerciseName, last: sessions).e1rm

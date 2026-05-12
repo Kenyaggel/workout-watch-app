@@ -35,10 +35,12 @@ public struct SessionPlan: Equatable, Hashable, Identifiable, Sendable {
         }
     }
 
+    public let templateID: UUID?
     public let templateName: String
     public let exercises: [Exercise]
 
-    public init(templateName: String, exercises: [Exercise]) {
+    public init(templateID: UUID? = nil, templateName: String, exercises: [Exercise]) {
+        self.templateID = templateID
         self.templateName = templateName
         self.exercises = exercises
     }
@@ -47,7 +49,9 @@ public struct SessionPlan: Equatable, Hashable, Identifiable, Sendable {
         exercises.allSatisfy { $0.sets.isEmpty }
     }
 
-    public var id: String { templateName + "-" + String(exercises.count) }
+    public var id: String {
+        templateID?.uuidString ?? templateName + "-" + String(exercises.count)
+    }
 }
 
 public struct SetCursor: Equatable, Sendable, Hashable {

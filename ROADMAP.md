@@ -52,10 +52,12 @@ The watch can run workouts but shouldn't create or edit them. Authoring belongs 
 
 A workout that's saved to HealthKit but invisible inside the app feels half-finished.
 
-- **Watch**: `SessionSummaryView` already exists for end-of-session; add a "History" tab showing last 10 sessions (date, total volume, duration).
-- **iPhone**: full history list → session detail (per-set actuals, RPE, planned vs done diff). Charts (weekly volume, e1RM per exercise) are a stretch.
-- **Status**: iPhone History and Analytics screens exist, but History still needs real-world testing before calling this theme complete.
-- **Data is already there** — `WorkoutSession` + `PerformedSet` records every set. This is pure UI work on top of existing models.
+- [x] **Watch**: `SessionSummaryView` exists for end-of-session; the watch now has a "History" tab showing the last 10 sessions (date, total volume, duration).
+- [x] **iPhone**: full history list → session detail (per-set actuals, RPE, planned vs done diff), with clearer session summaries.
+- [x] **Sync**: completed watch sessions now transfer to iPhone over `WCSession.transferUserInfo` as Codable session snapshots.
+- **Status**: Paired-device shakedown passed on watch hardware: workout completion, watch History, and iPhone History receipt all work.
+- **Analytics follow-ups**: Workout Frequency currently reads as an oversized blue bar/rectangle; redesign the chart once more data exists. Make Exercise Progression and Estimated 1RM interactive/responsive so tapping a point reveals the source workout and set context. Weekly Volume currently has little visible response with sparse data; revisit its empty/single-point behavior and interaction model.
+- **Data model is already there** — `WorkoutSession` + `PerformedSet` records every set; Theme 2 adds watch/iPhone surfaces plus watch→phone delivery.
 - **Files**:
   - `WorkoutApp/WorkoutApp Watch App/Views/HistoryListView.swift`
   - `WorkoutApp/WorkoutApp/Views/HistoryListView.swift` (iOS variant)
@@ -102,11 +104,13 @@ Optional — only if the user wants to actually ship.
 4. [x] **Workout start summary + first Up next.** Add the full-plan summary after start, then show Up next before the first exercise and every exercise transition.
 5. [x] **Timed exercise duration input.** Replace raw seconds entry with minute/second-first controls and optional hours.
 6. [x] **Optional RPE capture.** Let users finish sets without RPE while preserving optional RPE analytics data.
-7. **Theme 2: History verification.** Test the existing iPhone History flow with real saved workouts; fix gaps found there.
-8. **Theme 1: iPhone workout editor polish.** WatchConnectivity sync backbone exists; remaining work is real-device sync shakedown plus any editor affordances found during use.
-9. **Theme 3: Recovery UI.** (1 evening once #6 is done — sync-ish skeleton already exists.)
-10. **Theme 4: Complication.** (1 evening — widget + deep link.)
-11. **Theme 5: App Store**, only if user opts in.
+7. [x] **Theme 2: History implementation.** Watch History, watch→phone completed-session sync, and iPhone History summary/detail gaps are implemented and build-tested.
+8. [x] **Theme 2: paired-device shakedown.** Complete a workout on watch hardware and verify the iPhone receives it in History.
+9. **Analytics polish.** Improve sparse-data chart presentation, point selection, source-workout details, and later add average/average-of-top-N set metrics.
+10. **Theme 1: iPhone workout editor polish.** WatchConnectivity sync backbone exists; remaining work is real-device sync shakedown plus any editor affordances found during use.
+11. **Theme 3: Recovery UI.** (1 evening once #6 is done — sync-ish skeleton already exists.)
+12. **Theme 4: Complication.** (1 evening — widget + deep link.)
+13. **Theme 5: App Store**, only if user opts in.
 
 ## Out of scope (still)
 

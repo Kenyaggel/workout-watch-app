@@ -49,7 +49,7 @@ private struct SessionRowView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
-                Text("\(session.orderedPerformedSets.count) sets")
+                Text("\(session.orderedPerformedSets.count) sets · \(volumeText)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -63,5 +63,13 @@ private struct SessionRowView: View {
         } else {
             Text("In progress")
         }
+    }
+
+    private var volumeText: String {
+        let volume = session.totalVolumeKg
+        if volume.rounded() == volume {
+            return String(format: "%.0f kg", volume)
+        }
+        return String(format: "%.1f kg", volume)
     }
 }

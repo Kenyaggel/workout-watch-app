@@ -8,10 +8,21 @@ struct SessionDetailView: View {
         let groups = exerciseGroups(from: session.orderedPerformedSets)
 
         List {
-            ForEach(groups, id: \.exerciseIndex) { group in
-                Section(header: ExerciseSectionHeader(group: group)) {
-                    ForEach(group.sets.sorted { $0.setIndex < $1.setIndex }, id: \.id) { set in
-                        SetRowView(set: set, session: session)
+            Section {
+                LabeledContent("Started", value: formattedDate(session.startedAt))
+                LabeledContent("Duration", value: durationText)
+                LabeledContent("Sets", value: "\(session.orderedPerformedSets.count)")
+                LabeledContent("Volume", value: volumeText)
+            }
+
+            if groups.isEmpty {
+                ContentUnavailableView("No Sets Recorded", systemImage: "list.bullet.clipboard")
+            } else {
+                ForEach(groups, id: \.exerciseIndex) { group in
+                    Section(header: ExerciseSectionHeader(group: group)) {
+                        ForEach(group.sets.sorted { $0.setIndex < $1.setIndex }, id: \.id) { set in
+                            SetRowView(set: set, session: session)
+                        }
                     }
                 }
             }
@@ -32,6 +43,19 @@ struct SessionDetailView: View {
             return "\(date) · \(formatDuration(session.startedAt, end))"
         }
         return "\(date) · In progress"
+    }
+
+    private var durationText: String {
+        guard let end = session.endedAt else { return "In progress" }
+        return formatDuration(session.startedAt, end)
+    }
+
+    private var volumeText: String {
+        let volume = session.totalVolumeKg
+        if volume.rounded() == volume {
+            return String(format: "%.0f kg", volume)
+        }
+        return String(format: "%.1f kg", volume)
     }
 }
 
@@ -165,4 +189,3 @@ private struct SetRowView: View {
         return s == 0 ? "\(m)m" : "\(m)m \(s)s"
     }
 }
-
