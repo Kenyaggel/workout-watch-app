@@ -785,4 +785,136 @@ final class CoachTests: XCTestCase {
         XCTAssertEqual(out.proposedTargets.map(\.weightKg), [12.5, 12.5, 12.5],
                        "25 was entered as reps; it must not put 35 kg on the bar")
     }
+
+    // MARK: - History that predates recorded targets
+
+    /// Rows performed before V3 — which is *all* existing history the moment a store
+    /// migrates, plus anything synced from a watch on the previous build — carry no target.
+    /// They must not be judged against whatever the slot says today.
+    private func legacySession(_ n: Int, weight: Double = 60, reps: Int = 8, count: Int = 3) -> SessionSnapshot {
+        session(n, sets: (0..<count).map {
+            PerformedSnapshot(
+                id: UUID(uuidString: String(format: "00000000-0000-0000-0EE%d-%012d", $0, n))!,
+                exerciseID: benchID, exerciseName: "Bench Press",
+                exerciseIndex: 0, setIndex: $0, orderIndex: $0,
+                weightKg: weight, reps: reps, completedAt: day(n),
+                target: nil, plannedSetCount: nil
+            )
+        })
+    }
+
+    func testHistoryWithNoRecordedTargetNeverEarnsAnIncrease() {
+        let out = propose(slot: slot(targets: threeByEight), sessions: [legacySession(0)], asOf: 1)
+
+        XCTAssertNotEqual(out.outcome, .increase,
+                          "there is no record of what these sets were run against, so they cannot show a target was met")
+        XCTAssertEqual(out.delta, 0)
+        XCTAssertNotEqual(out.applyClass, .automatic)
+    }
+
+    /// The failure this prevents: the first read scores legacy sets as a hit against today's
+    /// numbers and writes +1 step; the second read compares the same sets against the raised
+    /// target, scores every one a miss, and proposes a deload to a lifter who missed nothing.
+    func testLegacyHistoryCannotTurnIntoADeloadAfterTargetsMove() {
+        let sessions = [legacySession(1), legacySession(0)]
+        let first = propose(slot: slot(targets: threeByEight), sessions: sessions, asOf: 2)
+        XCTAssertEqual(first.delta, 0)
+
+        // Even if something else had raised the targets, the legacy sets must not read as misses.
+        let raised = Array(repeating: TargetSnapshot(weightKg: 62.5, reps: 8), count: 3)
+        let second = propose(slot: slot(targets: raised), sessions: sessions, asOf: 2)
+
+        XCTAssertNotEqual(second.outcome, .deload,
+                          "hitting every prescribed rep must never come back as 'back off'")
+        XCTAssertEqual(second.evidence.consecutiveStalls, 0)
+    }
+
+    func testOnceAVThreeEraSessionExistsTheCoachSpeaksAgain() {
+        let out = propose(
+            slot: slot(targets: threeByEight),
+            sessions: [metSession(1), legacySession(0)],
+            asOf: 2
+        )
+        XCTAssertEqual(out.outcome, .increase, "the newest session records what it was run against")
+        XCTAssertEqual(out.delta, 2.5)
+    }
+
+    // MARK: - Chronic cut-short sessions
+
+    /// The escape valve for the one failure mode the partial-session rule creates: a lifter
+    /// who does 3 of 4 sets perfectly every time generates only `.skipped` verdicts, so the
+    /// coach would otherwise go permanently silent on that slot.
+    func testASlotCutShortEverySessionEventuallyAsksAHuman() {
+        let targets = Array(repeating: TargetSnapshot(weightKg: 60, reps: 8), count: 4)
+        let target = targets[0]
+        let cutShort = { (n: Int) in
+            self.session(n, sets: (0..<3).map {
+                self.perf($0, weight: 60, reps: 8, target: target, plannedSetCount: 4, day: n)
+            })
+        }
+        let out = propose(
+            slot: slot(targets: targets),
+            sessions: [cutShort(4), cutShort(3), cutShort(2), cutShort(1), cutShort(0)],
+            asOf: 5
+        )
+
+        XCTAssertEqual(out.outcome, .holdChronicPartialSession)
+        XCTAssertEqual(out.applyClass, .pendingReview,
+                       "going silent looks like a bug from outside, so the coach says so")
+        XCTAssertGreaterThanOrEqual(out.evidence.consecutivePartialSessions, 3)
+    }
+
+    func testOneOrTwoCutShortSessionsAreStillJustSkipped() {
+        let targets = Array(repeating: TargetSnapshot(weightKg: 60, reps: 8), count: 4)
+        let target = targets[0]
+        let cutShort = { (n: Int) in
+            self.session(n, sets: (0..<3).map {
+                self.perf($0, weight: 60, reps: 8, target: target, plannedSetCount: 4, day: n)
+            })
+        }
+        let out = propose(slot: slot(targets: targets), sessions: [cutShort(1), cutShort(0)], asOf: 2)
+
+        XCTAssertNotEqual(out.outcome, .holdChronicPartialSession)
+    }
+
+    // MARK: - Provenance flags describe the evidence actually used
+
+    func testAnOldNameMatchedSessionTheWalkNeverReachedDoesNotBlockAutoApply() {
+        // The walk stops at the older session — it was run against a different prescription —
+        // so its name-only match says nothing about the reading that produced the proposal.
+        let staleTarget = TargetSnapshot(weightKg: 40, reps: 8)
+        let stale = session(0, sets: (0..<3).map {
+            PerformedSnapshot(
+                id: UUID(uuidString: String(format: "00000000-0000-0000-0FF%d-000000000000", $0))!,
+                exerciseID: nil, exerciseName: "Bench Press",
+                exerciseIndex: 0, setIndex: $0, orderIndex: $0,
+                weightKg: 40, reps: 8, completedAt: day(0),
+                target: staleTarget, plannedSetCount: 3
+            )
+        })
+        let out = propose(slot: slot(targets: threeByEight), sessions: [metSession(1), stale], asOf: 2)
+
+        XCTAssertEqual(out.outcome, .increase)
+        XCTAssertFalse(out.flags.contains(.identityMatchedByNameOnly),
+                       "a flag is about the evidence used, not about anything that happens to sit in the window")
+        XCTAssertEqual(out.applyClass, .automatic)
+    }
+
+    func testANameMatchedSessionTheWalkDidUseStillForcesReview() {
+        let target = TargetSnapshot(weightKg: 60, reps: 8)
+        let nameOnly = session(0, sets: (0..<3).map {
+            PerformedSnapshot(
+                id: UUID(uuidString: String(format: "00000000-0000-0000-0AA%d-000000000000", $0))!,
+                exerciseID: nil, exerciseName: "Bench Press",
+                exerciseIndex: 0, setIndex: $0, orderIndex: $0,
+                weightKg: 60, reps: 8, completedAt: day(0),
+                target: target, plannedSetCount: 3
+            )
+        })
+        let out = propose(slot: slot(targets: threeByEight), sessions: [nameOnly], asOf: 1)
+
+        XCTAssertEqual(out.outcome, .increase)
+        XCTAssertTrue(out.flags.contains(.identityMatchedByNameOnly))
+        XCTAssertEqual(out.applyClass, .pendingReview)
+    }
 }

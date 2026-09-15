@@ -125,7 +125,8 @@ small and disposable. It should land well before anything else in Theme 6.
 - [x] Migration discipline followed, including a `MigrationTests` case that opens a V1-era store
   at V3 so the whole chain stays exercised.
 - [x] V3 also carries the rest of Theme 6's fields, since one schema version is cheaper than
-  two: `Exercise.progressionStep`, `PerformedSet.suggested*`, and `ProposedTarget`.
+  two: `Exercise.progressionStep` / `loadProgressionStepKg`, `PerformedSet.suggested*`,
+  and `CoachDecision`.
 - [x] `PerformedSet.target*` records the target in effect when the set ran. Not in the original
   plan, but 6d writes proposals onto `PlannedSet`, so without it every past session's
   planned-vs-done would re-render against today's numbers.
@@ -148,8 +149,11 @@ SwiftData, `asOf` injected the way `SessionEngine` injects `nowProvider`. Three 
 specifications were written and judged; these are the places the judges overruled the winner,
 and they are the rules that shipped:
 
-- Deloads round to the **nearest** whole number of steps, not up. Rounding up turns 60 kg into
-  52.5 and 5 reps into 4, both presented to the lifter as "about ten percent".
+- Deloads round to the **nearest** whole number of steps, not up. Rounding up turns a 60 kg
+  target into 52.5 — a 12.5% cut presented to the lifter as "about ten percent" — where nearest
+  lands on 55. This only bites on axes with room to round: an integral axis whose step is 1
+  always moves a full unit either way, so 5 reps deloads to 4 (−20%) regardless. That is the
+  best an integer axis can do, not a rounding choice.
 - A `.timed` slot stays on duration **even when it carries a weight**. `progressionStep` is one
   scalar, so a plank step of 5 authored as seconds would start adding 5 kilograms. The plate is
   instead a gate on whether a set was met.

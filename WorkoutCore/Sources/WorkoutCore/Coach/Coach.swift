@@ -52,7 +52,7 @@ public enum Coach {
 
         // MARK: History
 
-        let history = scopedHistory(input: input, dimension: dimension, flags: &flags)
+        let history = scopedHistory(input: input, dimension: dimension)
         evidence.comparableSessionCount = history.count
 
         let walk = walkBackward(history: history, slot: slot, dimension: dimension, config: config, flags: &flags)
@@ -181,6 +181,11 @@ public enum Coach {
     struct ScopedSession: Equatable {
         var session: SessionSnapshot
         var sets: [PerformedSnapshot]
+        /// How this session was tied to the slot. Carried per session rather than raised
+        /// globally, because a flag is a statement about the evidence a proposal rests on —
+        /// not about anything that happens to sit in the history window.
+        var matchedExerciseByName = false
+        var matchedWorkoutByName = false
     }
 
     static func normalize(_ value: String) -> String {
@@ -196,43 +201,50 @@ public enum Coach {
     /// break the moment a slot was reordered.
     static func scopedHistory(
         input: CoachInput,
-        dimension: ProgressionDimension,
-        flags: inout [CoachFlag]
+        dimension: ProgressionDimension
     ) -> [ScopedSession] {
         let slot = input.slot
         let slotWorkoutName = normalize(slot.workoutName)
-        let slotExerciseName = normalize(slot.exerciseName)
 
         // Rank of this slot among the slots in this workout that share its exercise.
         let peers = slot.peerSlotOrderIndexes.sorted()
         let rank = peers.firstIndex(of: slot.orderIndex) ?? 0
 
-        var matchedByWorkoutName = false
-        var matchedByExerciseName = false
-
-        let candidates = input.sessions.filter { session in
-            guard session.endedAt != nil, session.startedAt <= input.asOf else { return false }
-            if let id = session.workoutID { return id == slot.workoutID }
+        var candidates: [(session: SessionSnapshot, matchedWorkoutByName: Bool)] = []
+        for session in input.sessions {
+            guard session.endedAt != nil, session.startedAt <= input.asOf else { continue }
+            if let id = session.workoutID {
+                if id == slot.workoutID { candidates.append((session, false)) }
+                continue
+            }
             // The template relationship was nullified by a delete; reconnect by name so a
             // recreated workout of the same name keeps its history.
-            let matches = normalize(session.workoutName) == slotWorkoutName
-            if matches { matchedByWorkoutName = true }
-            return matches
+            if normalize(session.workoutName) == slotWorkoutName {
+                candidates.append((session, true))
+            }
         }
-        .sorted { lhs, rhs in
-            if lhs.startedAt != rhs.startedAt { return lhs.startedAt > rhs.startedAt }
-            return lhs.id.uuidString > rhs.id.uuidString
+
+        candidates.sort { lhs, rhs in
+            if lhs.session.startedAt != rhs.session.startedAt {
+                return lhs.session.startedAt > rhs.session.startedAt
+            }
+            return lhs.session.id.uuidString > rhs.session.id.uuidString
         }
 
         var result: [ScopedSession] = []
-        for session in candidates {
-            let ordered = matchedSets(in: session, slot: slot, rank: rank, matchedByName: &matchedByExerciseName)
+        for candidate in candidates {
+            var matchedByName = false
+            let ordered = matchedSets(
+                in: candidate.session, slot: slot, rank: rank, matchedByName: &matchedByName
+            )
             guard !ordered.isEmpty else { continue }
-            result.append(ScopedSession(session: session, sets: ordered))
+            result.append(ScopedSession(
+                session: candidate.session,
+                sets: ordered,
+                matchedExerciseByName: matchedByName,
+                matchedWorkoutByName: candidate.matchedWorkoutByName
+            ))
         }
-
-        if matchedByWorkoutName { flags.append(.workoutMatchedByNameOnly) }
-        if matchedByExerciseName { flags.append(.identityMatchedByNameOnly) }
         return result
     }
 
@@ -311,6 +323,8 @@ public enum Coach {
         var sawLegacyRow = false
         var countedPartials = true
         var sawIncomparable = false
+        var matchedExerciseByName = false
+        var matchedWorkoutByName = false
 
         for scoped in history {
             guard considered < config.maxLookbackSessions else { break }
@@ -324,13 +338,22 @@ public enum Coach {
             case .incomparable:
                 sawIncomparable = true
             case .legacy:
+                // No record of what these sets were run against, so they cannot show that a
+                // target was met — every row predating V3 is in this state, as is anything
+                // synced from a watch on the previous build. Judging them against today's
+                // numbers scored a perfect session as a hit, wrote a step onto the slot, and
+                // then read the very same sets as misses against the raised target: an
+                // unearned increase followed by a deload the lifter never earned.
                 sawLegacyRow = true
+                sawIncomparable = true
             case .comparable:
                 break
             }
             if sawIncomparable { break }
 
             considered += 1
+            if scoped.matchedExerciseByName { matchedExerciseByName = true }
+            if scoped.matchedWorkoutByName { matchedWorkoutByName = true }
             let judged = judge(scoped: scoped, slot: slot, dimension: dimension, config: config)
 
             if judged.verdict == .skipped {
@@ -360,9 +383,13 @@ public enum Coach {
             walk.lastVerdict = .skipped
         }
         if sawLegacyRow { flags.append(.legacyRowsWithoutRecordedTarget) }
+        if matchedExerciseByName { flags.append(.identityMatchedByNameOnly) }
+        if matchedWorkoutByName { flags.append(.workoutMatchedByNameOnly) }
         return walk
     }
 
+    /// `.legacy` is a *kind* of incomparable — it is distinguished only so the lifter can be
+    /// told why the coach has nothing to say yet.
     enum Comparability { case comparable, legacy, incomparable }
 
     static func comparability(

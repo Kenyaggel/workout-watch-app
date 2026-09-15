@@ -26,5 +26,12 @@ purely for display and as a fallback for rows that predate the change.
 - A performed set whose exercise was renamed or deleted *before* this migration cannot be
   resolved. Those rows keep a null identity and stay name-matched; the coach must tolerate that
   rather than assume identity is always present.
+- **Correction, found while implementing:** that is true only when the old name is gone. If an
+  exercise was renamed and a *different* exercise later took the old name, the name is
+  unambiguous today and the backfill resolves those rows to the wrong lift — permanently, since
+  it cannot be redone. Nothing in the store records the former name, so this is undetectable
+  rather than merely unhandled; it is a cost of name-based backfill, accepted here because the
+  alternative is discarding all pre-V3 history. It is also an argument for migrating while
+  stores are small.
 - `exerciseName` stays on `PerformedSet` deliberately. It is not redundant: it preserves what
   the exercise was called at the time it was performed, and covers deleted exercises.

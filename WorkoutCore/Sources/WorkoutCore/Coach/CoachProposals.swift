@@ -138,6 +138,20 @@ extension Coach {
         let slot = input.slot
         let config = input.config
 
+        // Checked before the generic hold, because when *every* comparable session was cut
+        // short there is no evaluated session and the check in `propose` is never reached —
+        // which is precisely the case this rule exists for. A lifter who does three of four
+        // sets perfectly every time produces only skipped verdicts, so the coach would
+        // otherwise go silent on that slot forever and look broken from outside.
+        if evidence.consecutivePartialSessions >= config.chronicPartialSessions {
+            return output(
+                slot: slot, dimension: dimension, outcome: .holdChronicPartialSession,
+                applyClass: .pendingReview, delta: 0, targets: slot.targets,
+                reason: "This slot has been cut short \(evidence.consecutivePartialSessions) sessions running, with nothing missed. Should it have fewer sets?",
+                flags: flags, evidence: evidence, sourceSessionID: nil
+            )
+        }
+
         if sawSkippedSession {
             return output(
                 slot: slot, dimension: dimension, outcome: .holdNoComparableHistory, applyClass: .noOp,
