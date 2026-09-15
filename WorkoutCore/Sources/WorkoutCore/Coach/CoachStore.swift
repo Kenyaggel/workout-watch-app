@@ -15,6 +15,37 @@ public struct CoachProposal: Identifiable, Sendable {
     public var id: String { output.fingerprint }
 
     public var isPendingReview: Bool { output.applyClass == .pendingReview }
+
+    /// What the slot says today, on the progression axis.
+    public var currentSummary: String {
+        Coach.summary(currentTargets, output.dimension)
+    }
+
+    /// What the Coach proposes instead.
+    public var proposedSummary: String {
+        Coach.summary(output.proposedTargets, output.dimension)
+    }
+
+    /// Nil when the proposal leaves the numbers where they are.
+    public var changeSummary: String? {
+        guard currentSummary != proposedSummary else { return nil }
+        return "\(currentSummary) → \(proposedSummary)"
+    }
+
+    public var headline: String {
+        switch output.outcome {
+        case .increase: return "Step up"
+        case .deload: return "Back off"
+        case .seedFromE1RM: return "Starting weight"
+        case .holdAtFloor: return "Stuck at the bottom"
+        case .holdAdvisoryCeiling: return "Time for a harder variation"
+        case .holdChronicPartialSession: return "Cut short repeatedly"
+        case .holdFirstStall: return "Repeat"
+        case .holdRPEVeto: return "Holding"
+        case .holdLayoff: return "Back after a break"
+        case .holdNoComparableHistory, .insufficientData, .noTargets: return "Nothing to change"
+        }
+    }
 }
 
 /// The thin SwiftData shell around the pure `Coach`.

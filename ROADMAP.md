@@ -102,10 +102,13 @@ The app records what you lifted but never advises. The coach closes that loop: i
 history and proposes the next session's targets. See `CONTEXT.md` for the vocabulary and
 `docs/adr/0001-exercise-identity-in-performed-history.md` for the identity decision.
 
-**Gated on data.** The store currently holds under ~10 sessions, mostly test data. Slot-scoped
-lookup needs repeat visits to the same slot and a deload needs two consecutive stalls, so none
-of this is buildable or verifiable yet. Revisit after roughly 6–8 weeks of real logging. The
-design below is settled; only the timing is open.
+**Built; still to be verified against real training.** 6a–6d are implemented and covered by
+122 tests in `WorkoutCoreTests`. The original gate — that none of this was buildable without
+6–8 weeks of logging — held for *verification*, not for construction: the rules are a pure
+function, so they are exercised against synthetic history instead, and `CoachBacktest` replays
+a simulated lifter over 120 sessions to show they neither run away nor collapse. What real
+data will still settle is whether the defaults (2.5 kg, a 10% deload, RPE ≥9 as a veto) suit
+this lifter. 6e, the language model, remains unbuilt and deliberately last.
 
 #### 6a. Exercise identity migration — done
 
@@ -127,44 +130,72 @@ small and disposable. It should land well before anything else in Theme 6.
   plan, but 6d writes proposals onto `PlannedSet`, so without it every past session's
   planned-vs-done would re-render against today's numbers.
 
-#### 6b. Backtest the rules — an afternoon, throwaway
+#### 6b. Backtest the rules — done
 
-Before migrating anything else or writing engine code, replay existing history through the
-rules below and print what they *would* have proposed, session by session. If the rules stall
-or run away on real data, better to find out in a script than in a schema. Do not skip this
-just because the rules look obvious.
+`WorkoutCore/Coach/CoachBacktest.swift` replays any history through the rules and prints what
+they would have proposed, session by session. It works on a real store (via
+`CoachStore.sessionSnapshots`) or on a simulated lifter.
 
-#### 6c. The progression rules
+The store holds under ten sessions, almost all test data, so replaying *it* would prove
+nothing; the tests drive a deterministic simulated lifter instead. Against a fixed 80 kg
+capacity the rules climb 60 → 82.5, stall, deload to 75 and climb back — a five-session cycle
+that never leaves 75–82.5. Swap in the real store once there is something to replay.
 
-- **Scope.** Propose from the last performance of this exercise *in this workout* — the slot.
+#### 6c. The progression rules — done
+
+Implemented in `WorkoutCore/Coach/`. `Coach.propose` is pure and total: no clock, no
+SwiftData, `asOf` injected the way `SessionEngine` injects `nowProvider`. Three rival
+specifications were written and judged; these are the places the judges overruled the winner,
+and they are the rules that shipped:
+
+- Deloads round to the **nearest** whole number of steps, not up. Rounding up turns 60 kg into
+  52.5 and 5 reps into 4, both presented to the lifter as "about ten percent".
+- A `.timed` slot stays on duration **even when it carries a weight**. `progressionStep` is one
+  scalar, so a plank step of 5 authored as seconds would start adding 5 kilograms. The plate is
+  instead a gate on whether a set was met.
+- A nonsense step is **rejected** back to the dimension default, not clamped — clamping
+  preserves an intent that is not there and then auto-applies it.
+- e1RM source sets are capped at 12 reps; Epley is fitted near a true single.
+- `PerformedSet.plannedSetCount` is recorded at run time, so a 3-of-4 session does not read as
+  complete once the slot is edited.
+
+
+- [x] **Scope.** Propose from the last performance of this exercise *in this workout* — the slot.
   Never pool heavy 5s with volume 12s. When a slot has no history (new workout, new exercise),
   fall back to the exercise's best e1RM across all workouts, scaled down to the target rep
   count. `AnalyticsEngine.exerciseAnalytics` already computes Epley e1RM.
-- **Dimension.** Every exercise progresses along exactly one axis, with a step in that axis's
+- [x] **Dimension.** Every exercise progresses along exactly one axis, with a step in that axis's
   unit: `.reps` with a weight → load in kg; `.reps` with no weight → target reps; `.timed` →
   duration; `.distance` → distance. `progressionStep: Double?` goes on `Exercise`, defaulted by
   kind, overridable per exercise. This is what makes Plank and push-ups coachable at all.
-- **Baseline.** Double progression. Hit every target rep on every set → one step up. Miss any
+- [x] **Baseline.** Double progression. Hit every target rep on every set → one step up. Miss any
   set → repeat the same targets. Stall twice consecutively → propose a ~10% deload.
-- **RPE is a veto, never a throttle.** Step size is always the exercise's fixed step; RPE only
+- [x] **RPE is a veto, never a throttle.** Step size is always the exercise's fixed step; RPE only
   changes direction. RPE ≥9 on an otherwise successful session turns increase into hold. RPE 10
   with missed reps turns hold into deload. Below 9 it does nothing, and absent RPE changes
   nothing — the rule must work on sessions with no RPE at all, which is most of them.
 
-#### 6d. Where proposals live and how they reach the watch
+#### 6d. Where proposals live and how they reach the watch — done
 
-- A completed session syncs watch → phone. **On receipt, the phone runs the coach and writes
-  accepted targets onto the workout's `PlannedSet` rows**, and the existing template sync
-  carries them back to the watch. Both hops already exist — no new DTO, no new `@Model`.
-- Writing to the workout is only safe because the *phone* is the writer. Template sync is
+- [x] A completed session syncs watch → phone. On receipt the phone runs the coach
+  (`CoachStore.ingest`) and writes accepted targets onto the workout's `PlannedSet` rows; the
+  existing template sync carries them back to the watch. Both hops already existed.
+- [x] Writing to the workout is only safe because the *phone* is the writer. Template sync is
   phone → watch and the watch replaces its local copy; a watch-side write would be clobbered.
-- **Review by exception.** A proposal that is a single step in the usual direction applies
-  automatically, so the watch is never stale on a day you skip the phone. Deloads, second
-  consecutive stalls, and anything larger than one step hold as pending until reviewed on the
-  phone. Approval authority stays where the stakes are.
-- `suggestedWeightKg` / `suggestedReps` on `PerformedSet` record what the coach proposed versus
-  what was actually run. That deviation signal is the only way to tell whether the coach is any
-  good. Add these with 6c, not with 6a — their shape should follow a working engine.
+- [x] **Review by exception.** A single step in the usual direction applies automatically, so
+  the watch is never stale on a day you skip the phone. Deloads, repeat stalls, first starting
+  weights and any reading the coach is not confident in hold as pending. The review surface is
+  a conditional section at the top of the Workouts tab — zero pixels at zero pending, which is
+  most weeks, and unmissable otherwise.
+- [x] `suggested*` on `PerformedSet` records what the coach proposed versus what was run. In
+  practice it only ever stamps proposals that were **pending**, which is correct rather than a
+  gap: an applied proposal *becomes* the target, so `target*` already records it. The pending
+  case is exactly where the lifter trained through a number the coach disagreed with.
+- **Proposals are recomputed, never stored.** The coach is deterministic and reads only
+  performed sets, so a proposal is a view of history. Storing them would create staleness with
+  no good answer and orphan lifecycle work on every delete. `CoachDecision` persists the
+  lifter's *decision* instead, keyed by content fingerprint and source session so dismissing
+  means "not on that evidence" rather than "never again".
 - Overriding needs no special handling: the coach reads only performed sets, so training
   through a suggestion you disagree with self-corrects next session.
 
@@ -198,10 +229,10 @@ just because the rules look obvious.
     enough that a name-match backfill was safe.
 12. **Theme 3: Recovery UI.** (1 evening once #6 is done — sync-ish skeleton already exists.)
 13. **Theme 4: Complication.** (1 evening — widget + deep link.)
-14. **Log real training.** The coach needs roughly 6–8 weeks of real sessions before it can be
-    built or verified. This is the actual gate on v3, and it is not an engineering task.
-15. **Theme 6b–6e: the coach**, once #14 has produced data. Backtest first, then the engine,
-    then the phone review screen, then narration.
+14. **Log real training.** Still the real gate — not on building the coach, which is done, but
+    on knowing whether its defaults suit this lifter. Not an engineering task.
+15. [x] **Theme 6b–6d: the coach.** Backtest, engine, write-back and the phone review screen
+    are built and tested. **6e (narration) is not started** and stays last.
 16. **Theme 5: App Store**, only if user opts in.
 
 ## Out of scope (still)

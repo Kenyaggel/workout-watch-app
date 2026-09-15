@@ -241,11 +241,4 @@ private struct SetRowView: View {
         )
         return suggested == ran ? nil : suggested
     }
-
-    private func formatSeconds(_ seconds: Int) -> String {
-        if seconds < 60 { return "\(seconds)s" }
-        let m = seconds / 60
-        let s = seconds % 60
-        return s == 0 ? "\(m)m" : "\(m)m \(s)s"
-    }
 }

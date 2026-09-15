@@ -14,6 +14,7 @@ struct ExerciseDetailView: View {
     @State private var defaultTargetReps: Int?
     @State private var defaultTargetDurationSec: Int?
     @State private var defaultTargetDistanceM: Double?
+    @State private var progressionStep: Double?
 
     init(exercise: Exercise? = nil) {
         self.exercise = exercise
@@ -23,6 +24,14 @@ struct ExerciseDetailView: View {
         _defaultTargetReps = State(initialValue: exercise?.defaultTargetReps)
         _defaultTargetDurationSec = State(initialValue: exercise?.defaultTargetDurationSec)
         _defaultTargetDistanceM = State(initialValue: exercise?.defaultTargetDistanceM)
+        _progressionStep = State(initialValue: exercise?.progressionStep)
+    }
+
+    /// The axis this exercise gets harder along. A weight on a reps exercise moves it from
+    /// counting reps to adding load, which changes what the step below means — so the field
+    /// is labelled in the resolved unit rather than in kilograms by default.
+    private var dimension: ProgressionDimension {
+        ProgressionDimension.resolve(kind: kind, hasTargetWeight: false)
     }
 
     var body: some View {
@@ -62,6 +71,13 @@ struct ExerciseDetailView: View {
                     }
                 }
             }
+            Section {
+                progressionStepField
+            } header: {
+                Text("Progression")
+            } footer: {
+                Text(progressionFooter)
+            }
         }
         .navigationTitle(exercise == nil ? "New Exercise" : "Edit Exercise")
         .toolbar {
@@ -78,6 +94,71 @@ struct ExerciseDetailView: View {
         }
     }
 
+    @ViewBuilder
+    private var progressionStepField: some View {
+        if dimension == .duration {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Step")
+                OptionalDurationField(value: durationStepBinding)
+            }
+        } else {
+            HStack {
+                Text("Step")
+                Spacer()
+                // Placeholder is the default rather than the unit, so the trailing unit
+                // label does not read as "reps reps". The unit has to stay visible: it
+                // changes with the exercise's type, and the same stored number means
+                // kilograms on one and seconds on another.
+                OptionalDoubleField(
+                    label: formattedStep(dimension.defaultStep),
+                    value: $progressionStep,
+                    width: 90
+                )
+                Text(dimension.unitLabel)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var durationStepBinding: Binding<Int?> {
+        Binding(
+            get: { progressionStep.map { Int($0) } },
+            set: { progressionStep = $0.map(Double.init) }
+        )
+    }
+
+    private var progressionFooter: String {
+        let amount = stepPhrase
+        let source = progressionStep == nil ? " by default" : ""
+        switch kind {
+        case .reps:
+            return "Adds \(amount)\(source) when every set hits its target. Putting a weight on this exercise's sets switches progression to load instead."
+        case .timed:
+            return "Adds \(amount)\(source) when every set hits its target. A weighted hold still progresses on time, never on the plate."
+        case .distance:
+            return "Adds \(amount)\(source) when every set hits its target."
+        }
+    }
+
+    private var stepPhrase: String {
+        let step = progressionStep ?? dimension.defaultStep
+        let value = formattedStep(step)
+        switch dimension {
+        case .reps:
+            return step == 1 ? "1 rep" : "\(value) reps"
+        case .load:
+            return "\(value) kg"
+        case .duration:
+            return step == 1 ? "1 second" : "\(value) seconds"
+        case .distance:
+            return "\(value) m"
+        }
+    }
+
+    private func formattedStep(_ value: Double) -> String {
+        value == value.rounded() ? String(Int(value)) : String(format: "%.4g", value)
+    }
+
     private func save() {
         let trimmed = name.trimmingCharacters(in: .whitespaces)
         if let existing = exercise {
@@ -87,6 +168,7 @@ struct ExerciseDetailView: View {
             existing.defaultTargetReps = kind == .reps ? defaultTargetReps : nil
             existing.defaultTargetDurationSec = kind == .timed ? defaultTargetDurationSec : nil
             existing.defaultTargetDistanceM = kind == .distance ? defaultTargetDistanceM : nil
+            existing.progressionStep = progressionStep
         } else {
             let ex = Exercise(
                 name: trimmed,
@@ -94,7 +176,8 @@ struct ExerciseDetailView: View {
                 defaultRestSec: defaultRestSec,
                 defaultTargetReps: kind == .reps ? defaultTargetReps : nil,
                 defaultTargetDurationSec: kind == .timed ? defaultTargetDurationSec : nil,
-                defaultTargetDistanceM: kind == .distance ? defaultTargetDistanceM : nil
+                defaultTargetDistanceM: kind == .distance ? defaultTargetDistanceM : nil,
+                progressionStep: progressionStep
             )
             modelContext.insert(ex)
         }

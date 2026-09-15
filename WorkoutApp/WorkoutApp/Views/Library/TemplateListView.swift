@@ -4,11 +4,28 @@ import WorkoutCore
 
 struct TemplateListView: View {
     @Query(sort: \WorkoutTemplate.createdAt) var templates: [WorkoutTemplate]
+    @Query private var sessions: [WorkoutSession]
     @Environment(\.modelContext) private var modelContext
     @State private var navigateTo: WorkoutTemplate?
+    @State private var pendingCount = 0
 
     var body: some View {
         List {
+            // Costs nothing at zero pending, which is most weeks — the section simply is not
+            // in the list. Review by exception only works if the lifter is told, so it sits
+            // on the first tab rather than inside each workout.
+            if pendingCount > 0 {
+                Section {
+                    NavigationLink {
+                        ProposalReviewView()
+                    } label: {
+                        Label(
+                            "\(pendingCount) target\(pendingCount == 1 ? "" : "s") to review",
+                            systemImage: "arrow.up.arrow.down.circle"
+                        )
+                    }
+                }
+            }
             ForEach(templates) { template in
                 Button {
                     navigateTo = template
@@ -25,6 +42,9 @@ struct TemplateListView: View {
             .onDelete(perform: deleteTemplates)
         }
         .navigationTitle("Workouts")
+        .task { refreshPendingCount() }
+        .onChange(of: sessions.count) { _, _ in refreshPendingCount() }
+        .onChange(of: templates.count) { _, _ in refreshPendingCount() }
         .navigationDestination(item: $navigateTo) { template in
             TemplateDetailView(template: template)
         }
@@ -39,6 +59,10 @@ struct TemplateListView: View {
                 }
             }
         }
+    }
+
+    private func refreshPendingCount() {
+        pendingCount = (try? CoachStore.pendingProposals(in: modelContext, asOf: Date()).count) ?? 0
     }
 
     private func deleteTemplates(at offsets: IndexSet) {

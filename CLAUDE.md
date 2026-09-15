@@ -80,6 +80,27 @@ Three layers, deliberately separated:
 - `AnalyticsEngine.exerciseAnalytics(id:name:last:)` is the identity-aware entry point; the `name:`-only overload remains for callers with no id. A row carrying a *different* id is excluded even when the names match.
 - `PerformedSet.target*` records the target in effect when the set ran. Read it, not the workout's current `PlannedSet`, anywhere you show planned-vs-done for a past session — the coach moves a workout's targets over time.
 
+### The progression coach
+
+- `WorkoutCore/Coach/` holds it. `Coach.propose(CoachInput) -> CoachOutput` is **pure and
+  total**: no clock, no SwiftData, a value for every input. `asOf` is injected the way
+  `SessionEngine` injects `nowProvider`. Keep it that way — every rule belongs in `Coach`, and
+  `CoachStore` stays a thin SwiftData shell that only reads, hands over value types, and writes
+  back.
+- Sessions are passed in **unscoped**. Slot scoping, occurrence matching and the cross-workout
+  e1RM scan happen inside the pure function so the intricate part stays under test.
+- **Proposals are recomputed, never stored.** `CoachDecision` persists the lifter's decision,
+  keyed by content fingerprint plus source session. The fingerprint is a string, never
+  `hashValue` — Swift's `Hasher` is seeded per process, so a persisted hash stops matching
+  after a relaunch.
+- **Only the phone writes targets.** Template sync is phone → watch and the watch replaces its
+  local copy, so a watch-side write would be clobbered.
+- Scope for lookup is the `(workout, exercise)` pair; identity is the exercise UUID.
+  `exerciseIndex` is never a matching key — it only separates two occurrences of one exercise
+  within a single session.
+- Every new rule needs a case in `CoachTests`, and anything affecting the long run needs one in
+  `CoachBacktestTests`, which replays a simulated lifter over 120 sessions.
+
 ### Recorder/HealthKit decoupling
 
 - `SessionRecorder` protocol → `SwiftDataRecorder` (prod) / `InMemorySessionRecorder` (tests).
