@@ -107,19 +107,25 @@ lookup needs repeat visits to the same slot and a deload needs two consecutive s
 of this is buildable or verifiable yet. Revisit after roughly 6–8 weeks of real logging. The
 design below is settled; only the timing is open.
 
-#### 6a. Exercise identity migration — do this now, not with the rest
+#### 6a. Exercise identity migration — done
 
 This is a correctness fix, independent of the coach, and it is cheapest while the store is
 small and disposable. It should land well before anything else in Theme 6.
 
-- `WorkoutSchemaV3` adds `exerciseID: UUID?` to `PerformedSet`; a migration stage backfills it
-  by matching `exerciseName` against the `Exercise` library.
-- Thread the id through `SessionPlan.Exercise` (which carries only `name` today) and through
-  `PerformedSetDTO` so synced watch sessions preserve it.
-- `AnalyticsEngine` matches on `exerciseID` when present, falling back to `exerciseName`.
-- Follow the existing migration discipline: new nested `@Model` types in `SchemaV3.swift`, a new
-  stage appended to `WorkoutMigrationPlan.stages`, typealiases retargeted, and a
-  `MigrationTests` case against a real file-backed store.
+- [x] `WorkoutSchemaV3` adds `exerciseID: UUID?` to `PerformedSet`; a migration stage backfills
+  it by matching `exerciseName` against the `Exercise` library. A name shared by two exercises
+  resolves to neither — guessing would assert an identity wrong for half those rows.
+- [x] Threaded through `SessionPlan.Exercise`, `CompletedSetEntry` and `PerformedSetSyncDTO`.
+  Sets arriving from a watch on the previous build are resolved on receipt by the same rule.
+- [x] `AnalyticsEngine.exerciseAnalytics(id:name:last:)` matches on `exerciseID` when present,
+  falling back to `exerciseName` only for rows that have none.
+- [x] Migration discipline followed, including a `MigrationTests` case that opens a V1-era store
+  at V3 so the whole chain stays exercised.
+- [x] V3 also carries the rest of Theme 6's fields, since one schema version is cheaper than
+  two: `Exercise.progressionStep`, `PerformedSet.suggested*`, and `ProposedTarget`.
+- [x] `PerformedSet.target*` records the target in effect when the set ran. Not in the original
+  plan, but 6d writes proposals onto `PlannedSet`, so without it every past session's
+  planned-vs-done would re-render against today's numbers.
 
 #### 6b. Backtest the rules — an afternoon, throwaway
 
@@ -188,8 +194,8 @@ just because the rules look obvious.
 8. [x] **Theme 2: paired-device shakedown.** Complete a workout on watch hardware and verify the iPhone receives it in History.
 9. **Analytics polish.** Improve sparse-data chart presentation, point selection, source-workout details, and later add average/average-of-top-N set metrics.
 10. **Theme 1: iPhone workout editor polish.** WatchConnectivity sync backbone exists; remaining work is real-device sync shakedown plus any editor affordances found during use.
-11. **Theme 6a: exercise identity migration.** Do this early, while the store is still small
-    enough that a name-match backfill is safe. Blocks nothing else, but gets harder with time.
+11. [x] **Theme 6a: exercise identity migration.** Done, while the store was still small
+    enough that a name-match backfill was safe.
 12. **Theme 3: Recovery UI.** (1 evening once #6 is done — sync-ish skeleton already exists.)
 13. **Theme 4: Complication.** (1 evening — widget + deep link.)
 14. **Log real training.** The coach needs roughly 6–8 weeks of real sessions before it can be
