@@ -68,15 +68,21 @@ public final class SessionEngine {
         guard let exercise = plan.exercise(at: cursor) else { return }
         let now = nowProvider()
 
+        let target = plan.set(at: cursor)
         recorder?.setCompleted(.init(
             cursor: cursor,
             exerciseName: exercise.name,
+            exerciseID: exercise.exerciseID,
             weightKg: weightKg,
             reps: reps,
             durationSec: durationSec,
             distanceM: distanceM,
             rpe: rpe,
-            completedAt: now
+            completedAt: now,
+            targetWeightKg: target?.targetWeightKg,
+            targetReps: target?.targetReps,
+            targetDurationSec: target?.targetDurationSec,
+            targetDistanceM: target?.targetDistanceM
         ))
 
         guard let succ = plan.successor(of: cursor) else {

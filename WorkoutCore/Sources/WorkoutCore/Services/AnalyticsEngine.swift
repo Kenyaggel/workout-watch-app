@@ -56,8 +56,18 @@ public struct AnalyticsEngine {
     /// progression (max weight + total volume per day) and Epley e1RM (max per day).
     /// Use this instead of calling `exerciseProgression` and `estimated1RM` separately when
     /// you need both — it cuts the fetch and grouping work in half.
+    ///
+    /// Prefer `exerciseAnalytics(id:name:last:)`: matching on Lift Identity survives a
+    /// rename and keeps two same-named exercises apart. This overload matches on name
+    /// alone and is kept for callers that have no id to offer.
     public func exerciseAnalytics(name: String, last sessions: Int) -> ExerciseAnalytics {
-        let bySession = groupedSetsBySession(exerciseName: name, last: sessions)
+        exerciseAnalytics(id: nil, name: name, last: sessions)
+    }
+
+    /// Matches performed history on Lift Identity, falling back to the display name only
+    /// for rows that predate `WorkoutSchemaV3` and could not be backfilled.
+    public func exerciseAnalytics(id: UUID?, name: String, last sessions: Int) -> ExerciseAnalytics {
+        let bySession = groupedSetsBySession(exerciseID: id, exerciseName: name, last: sessions)
 
         let progression = bySession.map { (sessionDate, sessionSets) -> ExerciseDataPoint in
             let maxWeight = sessionSets.compactMap(\.weightKg).max() ?? 0
@@ -82,7 +92,11 @@ public struct AnalyticsEngine {
         )
     }
 
-    private func groupedSetsBySession(exerciseName: String, last sessions: Int) -> [Date: [PerformedSet]] {
+    private func groupedSetsBySession(
+        exerciseID: UUID?,
+        exerciseName: String,
+        last sessions: Int
+    ) -> [Date: [PerformedSet]] {
         let cal = Calendar.current
         let now = Date()
         // Conservative date lower-bound: 60 days per requested session keeps the fetch bounded
@@ -92,9 +106,13 @@ public struct AnalyticsEngine {
             return [:]
         }
 
+        // The fetch is deliberately wider than the match: it takes anything carrying
+        // either the id or the name, and the identity rule below narrows it. Doing the
+        // narrowing here instead would need a predicate over a nullable UUID combined
+        // with a name fallback, which #Predicate cannot express.
         let descriptor = FetchDescriptor<PerformedSet>(
             predicate: #Predicate {
-                $0.exerciseName == exerciseName &&
+                ($0.exerciseID == exerciseID || $0.exerciseName == exerciseName) &&
                 $0.weightKg != nil &&
                 $0.reps != nil &&
                 $0.completedAt >= rangeStart
@@ -103,7 +121,9 @@ public struct AnalyticsEngine {
         let sets = (try? modelContext.fetch(descriptor)) ?? []
 
         // SwiftData #Predicate cannot express Int? > 0 comparisons — filter in Swift
-        let filtered = sets.filter { ($0.reps ?? 0) > 0 }
+        let filtered = sets
+            .filter { ($0.reps ?? 0) > 0 }
+            .filter { matches(set: $0, exerciseID: exerciseID, exerciseName: exerciseName) }
 
         var bySession: [Date: [PerformedSet]] = [:]
         for set in filtered {
@@ -111,6 +131,17 @@ public struct AnalyticsEngine {
             bySession[sessionAnchor, default: []].append(set)
         }
         return bySession
+    }
+
+    /// Lift Identity wins whenever the row has one: a row carrying a *different* id is
+    /// excluded even when the names coincide, which is what stops two same-named exercises
+    /// from being pooled. The name is consulted only for rows with no identity at all.
+    private func matches(set: PerformedSet, exerciseID: UUID?, exerciseName: String) -> Bool {
+        if let rowID = set.exerciseID {
+            guard let exerciseID else { return set.exerciseName == exerciseName }
+            return rowID == exerciseID
+        }
+        return set.exerciseName == exerciseName
     }
 
     // MARK: - Workout Frequency
@@ -152,5 +183,18 @@ public struct AnalyticsEngine {
     /// take max e1RM per session, return last N sessions sorted ascending.
     public func estimated1RM(exerciseName: String, last sessions: Int) -> [E1RMDataPoint] {
         exerciseAnalytics(name: exerciseName, last: sessions).e1rm
+    }
+
+    /// Best Epley e1RM ever recorded for a lift, across every workout. This is the Coach's
+    /// fallback when a Slot has no history of its own.
+    public func bestEstimated1RM(id: UUID?, name: String) -> Double? {
+        let bySession = groupedSetsBySession(exerciseID: id, exerciseName: name, last: 200)
+        let best = bySession.values.flatMap { $0 }.compactMap { set -> Double? in
+            guard let weight = set.weightKg, let reps = set.reps, reps > 0, weight > 0 else {
+                return nil
+            }
+            return weight * (1.0 + Double(reps) / 30.0)
+        }.max()
+        return best
     }
 }

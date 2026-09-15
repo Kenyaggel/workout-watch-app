@@ -178,4 +178,157 @@ final class SessionSyncTests: XCTestCase {
         XCTAssertEqual(sessions[0].orderedPerformedSets.count, 2)
         XCTAssertEqual(sessions[0].totalVolumeKg, 810, accuracy: 0.001)
     }
+
+    // MARK: - Lift Identity across the wire
+
+    func testSnapshotCarriesLiftIdentityAndTheTargetThatWasInEffect() throws {
+        let benchID = UUID()
+        let session = WorkoutSession(
+            id: UUID(),
+            startedAt: Date(timeIntervalSince1970: 10),
+            templateName: "Push"
+        )
+        let performed = PerformedSet(
+            orderIndex: 0,
+            exerciseName: "Bench Press",
+            exerciseID: benchID,
+            exerciseIndex: 0,
+            setIndex: 0,
+            weightKg: 82.5,
+            reps: 7,
+            completedAt: Date(timeIntervalSince1970: 100),
+            targetWeightKg: 80,
+            targetReps: 8
+        )
+        performed.session = session
+        session.performedSets = [performed]
+
+        let snapshot = SessionSyncSnapshot(session: session)
+        let decoded = try JSONDecoder().decode(
+            SessionSyncSnapshot.self,
+            from: JSONEncoder().encode(snapshot)
+        )
+
+        let set = try XCTUnwrap(decoded.session.performedSets.first)
+        XCTAssertEqual(set.exerciseID, benchID)
+        XCTAssertEqual(set.targetWeightKg, 80)
+        XCTAssertEqual(set.targetReps, 8)
+        XCTAssertEqual(set.weightKg, 82.5, "the actual stays distinct from the target")
+        XCTAssertEqual(set.reps, 7)
+    }
+
+    /// A watch still on the previous build sends JSON without any of the V3 keys. The phone
+    /// must accept it rather than dropping the whole session.
+    func testImporterAcceptsASnapshotFromAWatchThatPredatesV3() throws {
+        let context = try makeContext()
+        let sessionID = UUID()
+        let legacyJSON = """
+        {
+          "session": {
+            "id": "\(sessionID.uuidString)",
+            "startedAt": 10,
+            "templateName": "Push",
+            "performedSets": [
+              {
+                "id": "\(UUID().uuidString)",
+                "orderIndex": 0,
+                "exerciseName": "Bench Press",
+                "exerciseIndex": 0,
+                "setIndex": 0,
+                "weightKg": 60,
+                "reps": 8,
+                "completedAt": 100
+              }
+            ]
+          }
+        }
+        """
+        let snapshot = try JSONDecoder().decode(
+            SessionSyncSnapshot.self,
+            from: Data(legacyJSON.utf8)
+        )
+        XCTAssertNil(snapshot.session.performedSets[0].exerciseID)
+        XCTAssertNil(snapshot.session.performedSets[0].targetWeightKg)
+
+        try SessionSyncImporter.upsert(snapshot, in: context)
+        let stored = try context.fetch(FetchDescriptor<PerformedSet>())
+        XCTAssertEqual(stored.count, 1)
+        XCTAssertEqual(stored.first?.weightKg, 60)
+    }
+
+    /// Identity-less sets from an older watch get resolved on arrival by the same
+    /// unambiguous-name rule the V2→V3 migration uses.
+    func testImporterResolvesIdentityByNameForSetsThatArriveWithout() throws {
+        let context = try makeContext()
+        let benchID = UUID()
+        context.insert(Exercise(id: benchID, name: "Bench Press", kind: .reps, defaultRestSec: 120))
+        try context.save()
+
+        let dto = PerformedSetSyncDTO(
+            id: UUID(),
+            orderIndex: 0,
+            exerciseName: "bench press",
+            exerciseID: nil,
+            exerciseIndex: 0,
+            setIndex: 0,
+            weightKg: 60,
+            reps: 8,
+            durationSec: nil,
+            distanceM: nil,
+            rpe: nil,
+            completedAt: Date(timeIntervalSince1970: 100)
+        )
+        try SessionSyncImporter.upsert(
+            SessionSyncSnapshot(session: WorkoutSessionSyncDTO(
+                id: UUID(),
+                startedAt: Date(timeIntervalSince1970: 10),
+                endedAt: Date(timeIntervalSince1970: 1_000),
+                templateID: nil,
+                templateName: "Push",
+                healthKitWorkoutUUID: nil,
+                performedSets: [dto]
+            )),
+            in: context
+        )
+
+        let stored = try XCTUnwrap(try context.fetch(FetchDescriptor<PerformedSet>()).first)
+        XCTAssertEqual(stored.exerciseID, benchID)
+    }
+
+    func testImporterLeavesIdentityNilWhenTheNameIsAmbiguous() throws {
+        let context = try makeContext()
+        context.insert(Exercise(id: UUID(), name: "Row", kind: .reps, defaultRestSec: 90))
+        context.insert(Exercise(id: UUID(), name: "Row", kind: .reps, defaultRestSec: 60))
+        try context.save()
+
+        let dto = PerformedSetSyncDTO(
+            id: UUID(),
+            orderIndex: 0,
+            exerciseName: "Row",
+            exerciseID: nil,
+            exerciseIndex: 0,
+            setIndex: 0,
+            weightKg: 40,
+            reps: 12,
+            durationSec: nil,
+            distanceM: nil,
+            rpe: nil,
+            completedAt: Date(timeIntervalSince1970: 100)
+        )
+        try SessionSyncImporter.upsert(
+            SessionSyncSnapshot(session: WorkoutSessionSyncDTO(
+                id: UUID(),
+                startedAt: Date(timeIntervalSince1970: 10),
+                endedAt: nil,
+                templateID: nil,
+                templateName: "Pull",
+                healthKitWorkoutUUID: nil,
+                performedSets: [dto]
+            )),
+            in: context
+        )
+
+        let stored = try XCTUnwrap(try context.fetch(FetchDescriptor<PerformedSet>()).first)
+        XCTAssertNil(stored.exerciseID)
+    }
 }

@@ -210,12 +210,3 @@ public enum WorkoutSchemaV2: VersionedSchema {
         }
     }
 }
-
-// MARK: - Module-level typealiases (current = V2)
-
-public typealias Exercise = WorkoutSchemaV2.Exercise
-public typealias PlannedSet = WorkoutSchemaV2.PlannedSet
-public typealias PlannedExercise = WorkoutSchemaV2.PlannedExercise
-public typealias WorkoutTemplate = WorkoutSchemaV2.WorkoutTemplate
-public typealias WorkoutSession = WorkoutSchemaV2.WorkoutSession
-public typealias PerformedSet = WorkoutSchemaV2.PerformedSet

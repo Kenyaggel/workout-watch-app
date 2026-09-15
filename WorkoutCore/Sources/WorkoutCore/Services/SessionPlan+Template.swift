@@ -17,6 +17,7 @@ public extension SessionPlan {
             }
             return SessionPlan.Exercise(
                 name: exercise.name,
+                exerciseID: exercise.id,
                 kind: exercise.kind,
                 sets: sets
             )
