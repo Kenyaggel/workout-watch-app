@@ -2,11 +2,13 @@ import Foundation
 import SwiftData
 
 public enum SessionSyncImporter {
+    /// Returns the stored session so the caller can run the Coach over it.
+    @discardableResult
     @MainActor
     public static func upsert(
         _ snapshot: SessionSyncSnapshot,
         in context: ModelContext
-    ) throws {
+    ) throws -> WorkoutSession {
         let dto = snapshot.session
         let existingSession = try session(matching: dto.id, in: context)
         let workoutSession: WorkoutSession
@@ -52,6 +54,7 @@ public enum SessionSyncImporter {
                 distanceM: setDTO.distanceM,
                 rpe: setDTO.rpe,
                 completedAt: setDTO.completedAt,
+                plannedSetCount: setDTO.plannedSetCount,
                 targetWeightKg: setDTO.targetWeightKg,
                 targetReps: setDTO.targetReps,
                 targetDurationSec: setDTO.targetDurationSec,
@@ -62,6 +65,7 @@ public enum SessionSyncImporter {
         }
 
         try context.save()
+        return workoutSession
     }
 
     /// Names that map to exactly one library `Exercise`. A name shared by two exercises

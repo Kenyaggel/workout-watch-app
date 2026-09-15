@@ -16,9 +16,8 @@ import SwiftData
 ///   This deviation signal is the only way to tell whether the coach is any good.
 /// - `Exercise.progressionStep` — the Progression Step, in the unit of that exercise's
 ///   Progression Dimension. Nil means "use the default for this kind".
-/// - `ProposedTarget` — a Proposed Target held for review. Only proposals that need a
-///   human (deloads, repeat stalls, anything larger than one step) are stored; single-step
-///   moves are applied straight to `PlannedSet` and never land here.
+/// - `CoachDecision` — the durable record of what a human decided about a proposal.
+///   Proposals themselves are recomputed from history rather than stored.
 public enum WorkoutSchemaV3: VersionedSchema {
     public static var versionIdentifier = Schema.Version(3, 0, 0)
 
@@ -30,7 +29,7 @@ public enum WorkoutSchemaV3: VersionedSchema {
             WorkoutTemplate.self,
             WorkoutSession.self,
             PerformedSet.self,
-            ProposedTarget.self
+            CoachDecision.self
         ]
     }
 
@@ -212,6 +211,12 @@ public enum WorkoutSchemaV3: VersionedSchema {
         public var rpe: Int?
         public var completedAt: Date
 
+        /// How many sets the Slot planned when this set was run. Recorded because it is
+        /// the only way to tell "quit after one of four" from "this slot has one set" —
+        /// judging a past session against today's set count reads a cut-short session as
+        /// complete the moment the workout is edited.
+        public var plannedSetCount: Int?
+
         // The Target in effect when this set was performed.
         public var targetWeightKg: Double?
         public var targetReps: Int?
@@ -239,6 +244,7 @@ public enum WorkoutSchemaV3: VersionedSchema {
             distanceM: Double? = nil,
             rpe: Int? = nil,
             completedAt: Date,
+            plannedSetCount: Int? = nil,
             targetWeightKg: Double? = nil,
             targetReps: Int? = nil,
             targetDurationSec: Int? = nil,
@@ -260,6 +266,7 @@ public enum WorkoutSchemaV3: VersionedSchema {
             self.distanceM = distanceM
             self.rpe = rpe
             self.completedAt = completedAt
+            self.plannedSetCount = plannedSetCount
             self.targetWeightKg = targetWeightKg
             self.targetReps = targetReps
             self.targetDurationSec = targetDurationSec
@@ -271,63 +278,69 @@ public enum WorkoutSchemaV3: VersionedSchema {
         }
     }
 
-    /// A Proposed Target awaiting review on the phone. Single-step moves in the usual
-    /// direction never reach this table — they are applied straight to `PlannedSet` so the
-    /// watch is never stale on a day the lifter skips the phone. Only proposals where the
-    /// stakes justify a human land here.
+    /// A Proposed Target the lifter has decided on.
+    ///
+    /// Live proposals are **recomputed** rather than stored: the Coach is deterministic and
+    /// reads only Performed Sets, so a proposal is a view of history, not a fact about the
+    /// world. Storing them would create a staleness class with no good answer — a session
+    /// syncs late, or a Performed Set is edited, and the stored row is wrong but still on
+    /// the review screen — plus orphan lifecycle work every time a slot or workout is
+    /// deleted. What must be durable is the lifter's *decision*, which is what this holds.
+    ///
+    /// A decision is keyed by `fingerprint` (which proposal) and `sourceSessionID` (on what
+    /// evidence), so dismissing a deload means "not on the strength of that session" rather
+    /// than "never again": stall again and the re-derived proposal comes back.
     @Model
-    public final class ProposedTarget {
+    public final class CoachDecision {
         @Attribute(.unique) public var id: UUID
-        /// The Slot this proposal is for: `PlannedExercise.id`.
+        /// The Slot this was for: `PlannedExercise.id`.
         public var slotID: UUID
-        /// Denormalized so a proposal survives its slot being deleted and can still be
-        /// explained to the lifter.
+        public var workoutID: UUID?
+        public var exerciseID: UUID?
+        /// Denormalized so the audit trail survives its slot being deleted.
         public var workoutName: String
         public var exerciseName: String
-        public var exerciseID: UUID?
-        public var proposedAt: Date
-        /// `CoachOutcome` raw value — why the coach proposed this.
+        /// Content identity of the proposal, from `CoachOutput.fingerprint`.
+        public var fingerprint: String
+        /// The session whose evidence produced the proposal.
+        public var sourceSessionID: UUID?
+        /// `CoachOutcome` raw value.
         public var outcomeRaw: String
-        /// `ProgressionDimension` raw value — the axis that moved.
+        /// `ProgressionDimension` raw value.
         public var dimensionRaw: String
-        /// Human-readable reason, produced by the deterministic coach. Never by a model.
-        public var reason: String
-        /// Per-set proposed targets, ordered by the slot's set order.
-        public var setsData: Data
-        /// Set once the lifter accepts or dismisses; nil while pending.
-        public var resolvedAt: Date?
-        /// True when accepted, false when dismissed, nil while pending.
-        public var wasAccepted: Bool?
+        public var delta: Double
+        public var wasAccepted: Bool
+        public var decidedAt: Date
 
         public init(
             id: UUID = UUID(),
             slotID: UUID,
+            workoutID: UUID? = nil,
+            exerciseID: UUID? = nil,
             workoutName: String,
             exerciseName: String,
-            exerciseID: UUID? = nil,
-            proposedAt: Date,
+            fingerprint: String,
+            sourceSessionID: UUID? = nil,
             outcomeRaw: String,
             dimensionRaw: String,
-            reason: String,
-            setsData: Data,
-            resolvedAt: Date? = nil,
-            wasAccepted: Bool? = nil
+            delta: Double,
+            wasAccepted: Bool,
+            decidedAt: Date
         ) {
             self.id = id
             self.slotID = slotID
+            self.workoutID = workoutID
+            self.exerciseID = exerciseID
             self.workoutName = workoutName
             self.exerciseName = exerciseName
-            self.exerciseID = exerciseID
-            self.proposedAt = proposedAt
+            self.fingerprint = fingerprint
+            self.sourceSessionID = sourceSessionID
             self.outcomeRaw = outcomeRaw
             self.dimensionRaw = dimensionRaw
-            self.reason = reason
-            self.setsData = setsData
-            self.resolvedAt = resolvedAt
+            self.delta = delta
             self.wasAccepted = wasAccepted
+            self.decidedAt = decidedAt
         }
-
-        public var isPending: Bool { resolvedAt == nil }
     }
 }
 
@@ -339,4 +352,4 @@ public typealias PlannedExercise = WorkoutSchemaV3.PlannedExercise
 public typealias WorkoutTemplate = WorkoutSchemaV3.WorkoutTemplate
 public typealias WorkoutSession = WorkoutSchemaV3.WorkoutSession
 public typealias PerformedSet = WorkoutSchemaV3.PerformedSet
-public typealias ProposedTarget = WorkoutSchemaV3.ProposedTarget
+public typealias CoachDecision = WorkoutSchemaV3.CoachDecision

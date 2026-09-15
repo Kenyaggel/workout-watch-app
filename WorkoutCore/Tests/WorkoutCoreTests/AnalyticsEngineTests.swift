@@ -380,4 +380,107 @@ final class AnalyticsEngineTests: XCTestCase {
         let expected = 120.0 * (1.0 + 1.0 / 30.0)
         XCTAssertEqual(points[0].estimatedMax, expected, accuracy: 0.001)
     }
+
+    // MARK: - Lift Identity
+
+    private func insertSession(
+        _ context: ModelContext,
+        startedAt: Date,
+        sets: [(name: String, id: UUID?, weight: Double, reps: Int)]
+    ) {
+        let session = WorkoutSession(startedAt: startedAt, templateName: "Push")
+        session.endedAt = startedAt.addingTimeInterval(3_600)
+        context.insert(session)
+        for (index, spec) in sets.enumerated() {
+            let performed = PerformedSet(
+                orderIndex: index,
+                exerciseName: spec.name,
+                exerciseID: spec.id,
+                exerciseIndex: 0,
+                setIndex: index,
+                weightKg: spec.weight,
+                reps: spec.reps,
+                completedAt: startedAt.addingTimeInterval(Double(index) * 60)
+            )
+            performed.session = session
+            context.insert(performed)
+        }
+        try? context.save()
+    }
+
+    func testTwoExercisesSharingANameAreNoLongerPooled() throws {
+        let context = try makeContext()
+        let barbellRow = UUID()
+        let cableRow = UUID()
+        let now = Date()
+
+        insertSession(context, startedAt: now.addingTimeInterval(-86_400), sets: [
+            (name: "Row", id: barbellRow, weight: 80, reps: 5),
+            (name: "Row", id: cableRow, weight: 40, reps: 15)
+        ])
+
+        let analytics = AnalyticsEngine(modelContext: context)
+            .exerciseAnalytics(id: barbellRow, name: "Row", last: 10)
+
+        XCTAssertEqual(analytics.progression.count, 1)
+        XCTAssertEqual(analytics.progression.first?.maxWeightKg, 80,
+                       "the cable row's 40 kg shares the name but carries a different identity")
+        XCTAssertEqual(analytics.progression.first?.totalVolumeKg, 400)
+    }
+
+    func testARenamedExerciseKeepsItsHistory() throws {
+        let context = try makeContext()
+        let benchID = UUID()
+        let now = Date()
+
+        // Logged under the old name, then the library entry was renamed.
+        insertSession(context, startedAt: now.addingTimeInterval(-172_800), sets: [
+            (name: "Bench", id: benchID, weight: 60, reps: 8)
+        ])
+        insertSession(context, startedAt: now.addingTimeInterval(-86_400), sets: [
+            (name: "Barbell Bench Press", id: benchID, weight: 62.5, reps: 8)
+        ])
+
+        let analytics = AnalyticsEngine(modelContext: context)
+            .exerciseAnalytics(id: benchID, name: "Barbell Bench Press", last: 10)
+
+        XCTAssertEqual(analytics.progression.count, 2,
+                       "a rename must not split one lift's history in two")
+    }
+
+    func testRowsWithoutIdentityStillMatchOnName() throws {
+        let context = try makeContext()
+        let benchID = UUID()
+        let now = Date()
+
+        insertSession(context, startedAt: now.addingTimeInterval(-172_800), sets: [
+            (name: "Bench Press", id: nil, weight: 60, reps: 8)
+        ])
+        insertSession(context, startedAt: now.addingTimeInterval(-86_400), sets: [
+            (name: "Bench Press", id: benchID, weight: 62.5, reps: 8)
+        ])
+
+        let analytics = AnalyticsEngine(modelContext: context)
+            .exerciseAnalytics(id: benchID, name: "Bench Press", last: 10)
+
+        XCTAssertEqual(analytics.progression.count, 2,
+                       "pre-V3 rows that could not be backfilled stay name-matched")
+    }
+
+    func testTheNameOnlyOverloadStillSeesEveryRow() throws {
+        let context = try makeContext()
+        let now = Date()
+
+        insertSession(context, startedAt: now.addingTimeInterval(-86_400), sets: [
+            (name: "Squat", id: UUID(), weight: 100, reps: 5),
+            (name: "Squat", id: nil, weight: 90, reps: 5)
+        ])
+
+        let analytics = AnalyticsEngine(modelContext: context)
+            .exerciseAnalytics(name: "Squat", last: 10)
+
+        XCTAssertEqual(analytics.progression.first?.maxWeightKg, 100)
+        XCTAssertEqual(analytics.progression.first?.totalVolumeKg, 100 * 5 + 90 * 5,
+                       "with no id to match on, every row of that name counts once and only once")
+    }
 }

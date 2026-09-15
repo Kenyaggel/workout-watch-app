@@ -16,6 +16,8 @@ public struct CompletedSetEntry: Sendable {
     /// The Target that was in effect for this set. Recorded alongside the actuals
     /// because the Coach moves a workout's targets over time — without it, a past
     /// Session's planned-vs-done would re-render against today's numbers.
+    /// How many sets the Slot planned for this exercise in this session.
+    public let plannedSetCount: Int?
     public let targetWeightKg: Double?
     public let targetReps: Int?
     public let targetDurationSec: Int?
@@ -31,6 +33,7 @@ public struct CompletedSetEntry: Sendable {
         distanceM: Double?,
         rpe: Int?,
         completedAt: Date,
+        plannedSetCount: Int? = nil,
         targetWeightKg: Double? = nil,
         targetReps: Int? = nil,
         targetDurationSec: Int? = nil,
@@ -45,6 +48,7 @@ public struct CompletedSetEntry: Sendable {
         self.distanceM = distanceM
         self.rpe = rpe
         self.completedAt = completedAt
+        self.plannedSetCount = plannedSetCount
         self.targetWeightKg = targetWeightKg
         self.targetReps = targetReps
         self.targetDurationSec = targetDurationSec

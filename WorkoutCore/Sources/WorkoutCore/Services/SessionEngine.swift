@@ -79,6 +79,7 @@ public final class SessionEngine {
             distanceM: distanceM,
             rpe: rpe,
             completedAt: now,
+            plannedSetCount: exercise.sets.count,
             targetWeightKg: target?.targetWeightKg,
             targetReps: target?.targetReps,
             targetDurationSec: target?.targetDurationSec,

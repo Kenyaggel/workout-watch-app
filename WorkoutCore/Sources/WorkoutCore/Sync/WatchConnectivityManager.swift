@@ -138,7 +138,14 @@ public final class WatchConnectivityManager: NSObject, ObservableObject {
             let snapshot = try decoder.decode(SessionSyncSnapshot.self, from: data)
             let context = modelContext ?? ModelContext(modelContainer)
             modelContext = context
-            try SessionSyncImporter.upsert(snapshot, in: context)
+            let session = try SessionSyncImporter.upsert(snapshot, in: context)
+            // The phone runs the Coach on receipt and writes the single-step moves onto the
+            // workout; the template sync that already exists carries them back to the watch.
+            // Only the phone may write — template sync is phone → watch and the watch
+            // replaces its local copy, so a watch-side write would be clobbered.
+            if session.endedAt != nil {
+                try CoachStore.ingest(session: session, in: context, asOf: Date())
+            }
             lastReceivedSessionSyncAt = Date()
         } catch {
             assertionFailure("Failed to import workout session snapshot: \(error)")

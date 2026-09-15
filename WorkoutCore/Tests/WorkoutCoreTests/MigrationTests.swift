@@ -242,8 +242,9 @@ final class MigrationTests: XCTestCase {
         XCTAssertNil(performed.suggestedDurationSec)
         XCTAssertNil(performed.suggestedDistanceM)
 
-        XCTAssertTrue(try context.fetch(FetchDescriptor<ProposedTarget>()).isEmpty,
-                      "ProposedTarget is a new entity and starts empty")
+        XCTAssertNil(performed.plannedSetCount)
+        XCTAssertTrue(try context.fetch(FetchDescriptor<CoachDecision>()).isEmpty,
+                      "CoachDecision is a new entity and starts empty")
     }
 
     // MARK: - Plan shape

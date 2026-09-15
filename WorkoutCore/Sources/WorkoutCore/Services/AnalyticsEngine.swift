@@ -106,24 +106,56 @@ public struct AnalyticsEngine {
             return [:]
         }
 
-        // The fetch is deliberately wider than the match: it takes anything carrying
-        // either the id or the name, and the identity rule below narrows it. Doing the
-        // narrowing here instead would need a predicate over a nullable UUID combined
-        // with a name fallback, which #Predicate cannot express.
-        let descriptor = FetchDescriptor<PerformedSet>(
+        // Two narrow fetches rather than one wide one, so the narrowing stays in SQL.
+        // A single `id == x || name == n` predicate degenerates into a full scan whenever
+        // no id is supplied: `exerciseID == nil` is then true of every legacy row of every
+        // exercise, and the Swift-side filter has to throw the store away again.
+        //
+        // They cannot be merged into `id == x || (id == nil && name == n)` either: that
+        // form compiles alone, but adding this fetch's three `&&` clauses pushes the
+        // expression past the type-checker's budget.
+        var sets: [PerformedSet] = []
+        if let exerciseID {
+            let byIdentity = FetchDescriptor<PerformedSet>(
+                predicate: #Predicate {
+                    $0.exerciseID == exerciseID &&
+                    $0.weightKg != nil &&
+                    $0.reps != nil &&
+                    $0.completedAt >= rangeStart
+                }
+            )
+            sets += (try? modelContext.fetch(byIdentity)) ?? []
+        }
+        // Rows that predate V3 and could not be backfilled still match on the name.
+        let byName = FetchDescriptor<PerformedSet>(
             predicate: #Predicate {
-                ($0.exerciseID == exerciseID || $0.exerciseName == exerciseName) &&
+                $0.exerciseID == nil &&
+                $0.exerciseName == exerciseName &&
                 $0.weightKg != nil &&
                 $0.reps != nil &&
                 $0.completedAt >= rangeStart
             }
         )
-        let sets = (try? modelContext.fetch(descriptor)) ?? []
+        sets += (try? modelContext.fetch(byName)) ?? []
 
+        if exerciseID == nil {
+            // No identity to match on, so named rows that *do* carry one are still wanted.
+            let namedWithIdentity = FetchDescriptor<PerformedSet>(
+                predicate: #Predicate {
+                    $0.exerciseName == exerciseName &&
+                    $0.weightKg != nil &&
+                    $0.reps != nil &&
+                    $0.completedAt >= rangeStart
+                }
+            )
+            sets += (try? modelContext.fetch(namedWithIdentity)) ?? []
+        }
+
+        var seen = Swift.Set<UUID>()
         // SwiftData #Predicate cannot express Int? > 0 comparisons — filter in Swift
         let filtered = sets
+            .filter { seen.insert($0.id).inserted }
             .filter { ($0.reps ?? 0) > 0 }
-            .filter { matches(set: $0, exerciseID: exerciseID, exerciseName: exerciseName) }
 
         var bySession: [Date: [PerformedSet]] = [:]
         for set in filtered {
@@ -131,17 +163,6 @@ public struct AnalyticsEngine {
             bySession[sessionAnchor, default: []].append(set)
         }
         return bySession
-    }
-
-    /// Lift Identity wins whenever the row has one: a row carrying a *different* id is
-    /// excluded even when the names coincide, which is what stops two same-named exercises
-    /// from being pooled. The name is consulted only for rows with no identity at all.
-    private func matches(set: PerformedSet, exerciseID: UUID?, exerciseName: String) -> Bool {
-        if let rowID = set.exerciseID {
-            guard let exerciseID else { return set.exerciseName == exerciseName }
-            return rowID == exerciseID
-        }
-        return set.exerciseName == exerciseName
     }
 
     // MARK: - Workout Frequency
@@ -185,16 +206,4 @@ public struct AnalyticsEngine {
         exerciseAnalytics(name: exerciseName, last: sessions).e1rm
     }
 
-    /// Best Epley e1RM ever recorded for a lift, across every workout. This is the Coach's
-    /// fallback when a Slot has no history of its own.
-    public func bestEstimated1RM(id: UUID?, name: String) -> Double? {
-        let bySession = groupedSetsBySession(exerciseID: id, exerciseName: name, last: 200)
-        let best = bySession.values.flatMap { $0 }.compactMap { set -> Double? in
-            guard let weight = set.weightKg, let reps = set.reps, reps > 0, weight > 0 else {
-                return nil
-            }
-            return weight * (1.0 + Double(reps) / 30.0)
-        }.max()
-        return best
-    }
 }

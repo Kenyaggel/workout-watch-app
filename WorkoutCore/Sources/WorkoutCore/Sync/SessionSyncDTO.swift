@@ -72,6 +72,9 @@ public struct PerformedSetSyncDTO: Codable, Equatable, Sendable {
     public var rpe: Int?
     public var completedAt: Date
 
+    /// How many sets the Slot planned when this set was run.
+    public var plannedSetCount: Int?
+
     /// The Target in effect on the watch when this set was performed.
     public var targetWeightKg: Double?
     public var targetReps: Int?
@@ -91,6 +94,7 @@ public struct PerformedSetSyncDTO: Codable, Equatable, Sendable {
         distanceM: Double?,
         rpe: Int?,
         completedAt: Date,
+        plannedSetCount: Int? = nil,
         targetWeightKg: Double? = nil,
         targetReps: Int? = nil,
         targetDurationSec: Int? = nil,
@@ -108,6 +112,7 @@ public struct PerformedSetSyncDTO: Codable, Equatable, Sendable {
         self.distanceM = distanceM
         self.rpe = rpe
         self.completedAt = completedAt
+        self.plannedSetCount = plannedSetCount
         self.targetWeightKg = targetWeightKg
         self.targetReps = targetReps
         self.targetDurationSec = targetDurationSec
@@ -128,6 +133,7 @@ public struct PerformedSetSyncDTO: Codable, Equatable, Sendable {
             distanceM: performedSet.distanceM,
             rpe: performedSet.rpe,
             completedAt: performedSet.completedAt,
+            plannedSetCount: performedSet.plannedSetCount,
             targetWeightKg: performedSet.targetWeightKg,
             targetReps: performedSet.targetReps,
             targetDurationSec: performedSet.targetDurationSec,

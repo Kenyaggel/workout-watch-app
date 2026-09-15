@@ -41,6 +41,7 @@ public final class SwiftDataRecorder: SessionRecorder {
             distanceM: entry.distanceM,
             rpe: entry.rpe,
             completedAt: entry.completedAt,
+            plannedSetCount: entry.plannedSetCount,
             targetWeightKg: entry.targetWeightKg,
             targetReps: entry.targetReps,
             targetDurationSec: entry.targetDurationSec,

@@ -226,46 +226,67 @@ public enum Coach {
 
         var result: [ScopedSession] = []
         for session in candidates {
-            let matched = session.sets.filter { set in
-                if let id = set.exerciseID {
-                    // A present-but-different id is definitive evidence of a different lift.
-                    // Falling back to the name here would reintroduce the pooling the ADR
-                    // exists to remove.
-                    return id == slot.exerciseID
-                }
-                let matches = normalize(set.exerciseName) == slotExerciseName
-                if matches { matchedByExerciseName = true }
-                return matches
-            }
-            guard !matched.isEmpty else { continue }
-
-            // Separate repeated occurrences of one exercise inside a single session.
-            let occurrences = Array(Swift.Set(matched.map(\.exerciseIndex))).sorted()
-            guard rank < occurrences.count else { continue }
-            let occurrence = occurrences[rank]
-
-            var deduped: [Int: PerformedSnapshot] = [:]
-            for set in matched where set.exerciseIndex == occurrence {
-                // Re-import and crash recovery both produce duplicate setIndex rows; keep
-                // one deterministically instead of letting it shift every later pairing.
-                if let existing = deduped[set.setIndex], existing.orderIndex <= set.orderIndex {
-                    continue
-                }
-                deduped[set.setIndex] = set
-            }
-
-            let ordered = deduped.values.sorted { lhs, rhs in
-                if lhs.setIndex != rhs.setIndex { return lhs.setIndex < rhs.setIndex }
-                if lhs.orderIndex != rhs.orderIndex { return lhs.orderIndex < rhs.orderIndex }
-                if lhs.completedAt != rhs.completedAt { return lhs.completedAt < rhs.completedAt }
-                return lhs.id.uuidString < rhs.id.uuidString
-            }
+            let ordered = matchedSets(in: session, slot: slot, rank: rank, matchedByName: &matchedByExerciseName)
+            guard !ordered.isEmpty else { continue }
             result.append(ScopedSession(session: session, sets: ordered))
         }
 
         if matchedByWorkoutName { flags.append(.workoutMatchedByNameOnly) }
         if matchedByExerciseName { flags.append(.identityMatchedByNameOnly) }
         return result
+    }
+
+    /// The Performed Sets belonging to one Slot within one Session, deduplicated and totally
+    /// ordered. Exposed so the write-back path pairs sets with targets exactly the way the
+    /// rules did when they judged them.
+    public static func matchedSets(in session: SessionSnapshot, slot: SlotSnapshot) -> [PerformedSnapshot] {
+        var ignored = false
+        let peers = slot.peerSlotOrderIndexes.sorted()
+        let rank = peers.firstIndex(of: slot.orderIndex) ?? 0
+        return matchedSets(in: session, slot: slot, rank: rank, matchedByName: &ignored)
+    }
+
+    static func matchedSets(
+        in session: SessionSnapshot,
+        slot: SlotSnapshot,
+        rank: Int,
+        matchedByName: inout Bool
+    ) -> [PerformedSnapshot] {
+        let slotExerciseName = normalize(slot.exerciseName)
+        let matched = session.sets.filter { set in
+            if let id = set.exerciseID {
+                // A present-but-different id is definitive evidence of a different lift.
+                // Falling back to the name here would reintroduce the pooling the ADR
+                // exists to remove.
+                return id == slot.exerciseID
+            }
+            let matches = normalize(set.exerciseName) == slotExerciseName
+            if matches { matchedByName = true }
+            return matches
+        }
+        guard !matched.isEmpty else { return [] }
+
+        // Separate repeated occurrences of one exercise inside a single session.
+        let occurrences = Array(Swift.Set(matched.map(\.exerciseIndex))).sorted()
+        guard rank < occurrences.count else { return [] }
+        let occurrence = occurrences[rank]
+
+        var deduped: [Int: PerformedSnapshot] = [:]
+        for set in matched where set.exerciseIndex == occurrence {
+            // Re-import and crash recovery both produce duplicate setIndex rows; keep one
+            // deterministically instead of letting it shift every later pairing.
+            if let existing = deduped[set.setIndex], existing.orderIndex <= set.orderIndex {
+                continue
+            }
+            deduped[set.setIndex] = set
+        }
+
+        return deduped.values.sorted { lhs, rhs in
+            if lhs.setIndex != rhs.setIndex { return lhs.setIndex < rhs.setIndex }
+            if lhs.orderIndex != rhs.orderIndex { return lhs.orderIndex < rhs.orderIndex }
+            if lhs.completedAt != rhs.completedAt { return lhs.completedAt < rhs.completedAt }
+            return lhs.id.uuidString < rhs.id.uuidString
+        }
     }
 
     // MARK: - The walk
