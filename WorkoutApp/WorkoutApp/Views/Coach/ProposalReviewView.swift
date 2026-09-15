@@ -24,11 +24,20 @@ struct ProposalReviewView: View {
                 Section {
                     ProposalRow(proposal: proposal)
                     HStack {
-                        Button("Apply") { accept(proposal) }
-                            .buttonStyle(.borderedProminent)
-                        Spacer()
-                        Button("Not now") { dismiss(proposal) }
-                            .buttonStyle(.bordered)
+                        if proposal.changesTargets {
+                            Button("Apply") { accept(proposal) }
+                                .buttonStyle(.borderedProminent)
+                            Spacer()
+                            Button("Not now") { dismiss(proposal) }
+                                .buttonStyle(.bordered)
+                        } else {
+                            // Nothing to write — the coach is reporting that it is stuck, not
+                            // proposing a number. Offering "Apply" here would write the same
+                            // targets back and leave the row exactly where it was.
+                            Button("Got it") { accept(proposal) }
+                                .buttonStyle(.bordered)
+                            Spacer()
+                        }
                     }
                     .padding(.vertical, 4)
                 } header: {

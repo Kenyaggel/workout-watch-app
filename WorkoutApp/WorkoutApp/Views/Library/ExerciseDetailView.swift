@@ -79,6 +79,13 @@ struct ExerciseDetailView: View {
                 Text(progressionFooter)
             }
         }
+        .onChange(of: kind) { _, _ in
+            // The step is a single scalar read in the resolved dimension's unit, so a value
+            // typed as 50 metres would be read as 50 seconds after a switch to Timed — and
+            // 50 is inside the sanitizer's tolerance for a 5 second default, so it would
+            // auto-apply. Clearing it falls back to the new dimension's own default.
+            progressionStep = nil
+        }
         .navigationTitle(exercise == nil ? "New Exercise" : "Edit Exercise")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {

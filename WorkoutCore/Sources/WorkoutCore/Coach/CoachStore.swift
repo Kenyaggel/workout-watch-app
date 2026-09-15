@@ -26,6 +26,13 @@ public struct CoachProposal: Identifiable, Sendable {
         Coach.summary(output.proposedTargets, output.dimension)
     }
 
+    /// False when the Coach is reporting a situation rather than proposing numbers — it has
+    /// stalled the lifter out, hit a ceiling, or seen a slot cut short repeatedly. There is
+    /// nothing to write; the lifter is only being told.
+    public var changesTargets: Bool {
+        output.proposedTargets != currentTargets
+    }
+
     /// Nil when the proposal leaves the numbers where they are.
     public var changeSummary: String? {
         guard currentSummary != proposedSummary else { return nil }
@@ -70,12 +77,16 @@ public enum CoachStore {
         let templates = try context.fetch(FetchDescriptor<WorkoutTemplate>())
         let decisions = try context.fetch(FetchDescriptor<CoachDecision>())
 
-        // A dismissal is keyed by *which* proposal and *on what evidence*, so stalling again
+        // A decision is keyed by *which* proposal and *on what evidence*, so stalling again
         // resurfaces a deload the lifter waved away last time.
-        let dismissed = Swift.Set(
-            decisions
-                .filter { !$0.wasAccepted }
-                .map { decisionKey(fingerprint: $0.fingerprint, sourceSessionID: $0.sourceSessionID) }
+        //
+        // Accepting suppresses it too, not just dismissing. Most proposals move the targets,
+        // which changes the fingerprint and retires them on its own — but the ones that
+        // change nothing and only ask to be acknowledged (`.holdAtFloor`,
+        // `.holdAdvisoryCeiling`, `.holdChronicPartialSession`) re-derive identically
+        // forever, so acting on them has to be what clears them.
+        let decided = Swift.Set(
+            decisions.map { decisionKey(fingerprint: $0.fingerprint, sourceSessionID: $0.sourceSessionID) }
         )
 
         var result: [CoachProposal] = []
@@ -87,7 +98,7 @@ public enum CoachStore {
                 )
                 guard output.applyClass != .noOp || output.outcome == .holdFirstStall else { continue }
                 let key = decisionKey(fingerprint: output.fingerprint, sourceSessionID: output.sourceSessionID)
-                guard !dismissed.contains(key) else { continue }
+                guard !decided.contains(key) else { continue }
                 result.append(CoachProposal(
                     output: output,
                     slotID: snapshot.slotID,

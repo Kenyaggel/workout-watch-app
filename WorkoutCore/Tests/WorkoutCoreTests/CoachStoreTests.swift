@@ -261,4 +261,63 @@ final class CoachStoreTests: XCTestCase {
         try CoachStore.ingest(session: session, in: context, asOf: day(1))
         XCTAssertEqual(seed.slot.orderedSets.map(\.targetWeightKg), [65, 65, 65])
     }
+
+    // MARK: - Proposals that report a situation rather than propose a number
+
+    /// `.holdAtFloor`, `.holdAdvisoryCeiling` and `.holdChronicPartialSession` hold for
+    /// review but leave the numbers alone. Acting on one has to retire it: it re-derives
+    /// identically from unchanged history, so if only dismissals suppressed proposals it
+    /// would sit on the review screen forever and every tap would insert another decision.
+    func testAcknowledgingAProposalThatChangesNothingClearsIt() throws {
+        let context = try makeContext()
+        // 5 kg with a 2.5 kg step: a deload would land on 2.5, which is under the floor.
+        let seed = seedWorkout(context, weight: 5)
+        recordSession(context, template: seed.template, exercise: seed.exercise,
+                      on: 0, weight: 5, reps: 5, targetWeight: 5)
+        recordSession(context, template: seed.template, exercise: seed.exercise,
+                      on: 1, weight: 5, reps: 5, targetWeight: 5)
+
+        let pending = try CoachStore.pendingProposals(in: context, asOf: day(2))
+        let stuck = try XCTUnwrap(pending.first)
+        XCTAssertEqual(stuck.output.outcome, .holdAtFloor)
+        XCTAssertFalse(stuck.changesTargets, "there is nothing to write — the lifter is only being told")
+
+        try CoachStore.accept(stuck, in: context, at: day(2))
+
+        XCTAssertTrue(try CoachStore.pendingProposals(in: context, asOf: day(2)).isEmpty,
+                      "acknowledging it must retire it, not re-derive it unchanged")
+        XCTAssertEqual(seed.slot.orderedSets.map(\.targetWeightKg), [5, 5, 5],
+                       "and must not have written anything")
+        XCTAssertEqual(try context.fetch(FetchDescriptor<CoachDecision>()).count, 1)
+    }
+
+    func testAnAcknowledgedSituationStillComesBackOnNewEvidence() throws {
+        let context = try makeContext()
+        let seed = seedWorkout(context, weight: 5)
+        recordSession(context, template: seed.template, exercise: seed.exercise,
+                      on: 0, weight: 5, reps: 5, targetWeight: 5)
+        recordSession(context, template: seed.template, exercise: seed.exercise,
+                      on: 1, weight: 5, reps: 5, targetWeight: 5)
+
+        let stuck = try XCTUnwrap(try CoachStore.pendingProposals(in: context, asOf: day(2)).first)
+        try CoachStore.accept(stuck, in: context, at: day(2))
+        XCTAssertTrue(try CoachStore.pendingProposals(in: context, asOf: day(2)).isEmpty)
+
+        recordSession(context, template: seed.template, exercise: seed.exercise,
+                      on: 3, weight: 5, reps: 5, targetWeight: 5)
+
+        XCTAssertEqual(try CoachStore.pendingProposals(in: context, asOf: day(4)).count, 1,
+                       "a fresh session is fresh evidence, so the coach says so again")
+    }
+
+    func testAProposalThatMovesTheNumbersStillReportsThatItDoes() throws {
+        let context = try makeContext()
+        let seed = seedWorkout(context)
+        recordSession(context, template: seed.template, exercise: seed.exercise, on: 0, reps: 5)
+        recordSession(context, template: seed.template, exercise: seed.exercise, on: 1, reps: 5)
+
+        let deload = try XCTUnwrap(try CoachStore.pendingProposals(in: context, asOf: day(2)).first)
+        XCTAssertTrue(deload.changesTargets)
+        XCTAssertEqual(deload.changeSummary, "3×60 kg → 3×55 kg")
+    }
 }
