@@ -69,7 +69,7 @@ Three layers, deliberately separated:
 
 - This app has real on-device stores. New `@Model` attributes must be migration-safe: optional with a computed resolved value, explicitly migrated, or backfilled before they become required.
 - The schema is currently at `WorkoutSchemaV3`. V1→V2 is a custom stage that captures `PlannedSet.restOverrideSec` in `willMigrate` and writes it onto `PlannedExercise.restSec` in `didMigrate`. V2→V3 is custom too, but with `willMigrate: nil` — every attribute it adds is optional and `ProposedTarget` is a new entity, so the diff migrates lightly and the stage exists only to run the identity backfill. It needs no stash because nothing is removed: `didMigrate` can read `PerformedSet.exerciseName` and `Exercise.id`/`name` on both sides.
-- Never mutate `WorkoutSchemaV1` or `WorkoutSchemaV2` in place — both are frozen as on-disk shapes for users updating from an older build.
+- Never mutate `WorkoutSchemaV1` or `WorkoutSchemaV2` in place — both are frozen as on-disk shapes for users updating from an older build. **`WorkoutSchemaV3` freezes the moment this branch ships.** While it is unshipped, editing it is free but invalidates every development store: adding a field without bumping `versionIdentifier` changes the model hash, and SwiftData then fails with *"Cannot use staged migration with an unknown model version."* and `loadIssueModelContainer`. During development that means deleting the app from the simulator; after shipping it would mean a user losing their store, so it must become a V4 instead.
 - For the next schema-breaking change, add `WorkoutSchemaV4` with its own nested `@Model` types, append a stage to `WorkoutMigrationPlan.stages`, and point the module-level typealiases at V4. `MigrationTests` is the template for verifying it on a real file-backed store — including a case that opens a V1-era store at the current schema, so the whole chain stays exercised.
 
 ### Lift identity in performed history
@@ -98,6 +98,12 @@ Three layers, deliberately separated:
 - Scope for lookup is the `(workout, exercise)` pair; identity is the exercise UUID.
   `exerciseIndex` is never a matching key — it only separates two occurrences of one exercise
   within a single session.
+- **The Progression Step is stored per axis, not per exercise.** `Exercise.progressionStep`
+  holds the step on the kind-natural axis (reps / duration / distance); `loadProgressionStepKg`
+  holds it in kilograms. A `.reps` exercise maps to *two* dimensions depending on the slot —
+  weighted pull-ups progress on load, bodyweight pull-ups on reps — so one untyped scalar would
+  be read in whichever unit the slot implied, and a "3" meaning three reps would put 3 kg on the
+  bar. Read them through `SlotSnapshot.storedStep(for:)`, never directly.
 - Every new rule needs a case in `CoachTests`, and anything affecting the long run needs one in
   `CoachBacktestTests`, which replays a simulated lifter over 120 sessions.
 

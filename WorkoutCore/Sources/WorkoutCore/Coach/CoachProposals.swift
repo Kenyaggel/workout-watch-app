@@ -168,7 +168,7 @@ extension Coach {
         }
 
         evidence.sourceE1RM = e1rm
-        let loadStep = resolveStep(slot.progressionStep, dimension: .load, config: config, flags: &flags)
+        let loadStep = resolveStep(slot.storedStep(for: .load), dimension: .load, config: config, flags: &flags)
         evidence.resolvedStep = loadStep
 
         // Per-set inverse Epley against each set's own rep target, so the seed falls out as

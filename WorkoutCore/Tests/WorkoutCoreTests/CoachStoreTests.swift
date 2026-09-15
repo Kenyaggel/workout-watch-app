@@ -24,9 +24,10 @@ final class CoachStoreTests: XCTestCase {
         setCount: Int = 3,
         step: Double? = nil
     ) -> (template: WorkoutTemplate, exercise: Exercise, slot: PlannedExercise) {
+        // Weighted bench, so the override belongs on the load axis.
         let exercise = Exercise(
             name: "Bench Press", kind: .reps, defaultRestSec: 120,
-            defaultTargetReps: reps, progressionStep: step
+            defaultTargetReps: reps, loadProgressionStepKg: step
         )
         context.insert(exercise)
         let template = WorkoutTemplate(name: "Push Day")

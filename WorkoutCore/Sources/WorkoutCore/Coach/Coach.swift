@@ -37,7 +37,7 @@ public enum Coach {
             )
         }
 
-        let step = resolveStep(slot.progressionStep, dimension: dimension, config: config, flags: &flags)
+        let step = resolveStep(slot.storedStep(for: dimension), dimension: dimension, config: config, flags: &flags)
         var evidence = CoachEvidence()
         evidence.resolvedStep = step
 

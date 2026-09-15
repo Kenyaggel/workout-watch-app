@@ -57,7 +57,10 @@ public struct SlotSnapshot: Equatable, Sendable {
     public var exerciseName: String
     /// Nil when the exercise is gone, which forces the dimension to be inferred.
     public var kind: ExerciseKind?
+    /// Step on the exercise's kind-natural axis.
     public var progressionStep: Double?
+    /// Step in kilograms, used when this slot's targets carry weight.
+    public var loadProgressionStep: Double?
     public var targets: [TargetSnapshot]
     /// This slot's position in its workout.
     public var orderIndex: Int
@@ -74,6 +77,7 @@ public struct SlotSnapshot: Equatable, Sendable {
         exerciseName: String,
         kind: ExerciseKind?,
         progressionStep: Double?,
+        loadProgressionStep: Double? = nil,
         targets: [TargetSnapshot],
         orderIndex: Int = 0,
         peerSlotOrderIndexes: [Int] = []
@@ -85,9 +89,18 @@ public struct SlotSnapshot: Equatable, Sendable {
         self.exerciseName = exerciseName
         self.kind = kind
         self.progressionStep = progressionStep
+        self.loadProgressionStep = loadProgressionStep
         self.targets = targets
         self.orderIndex = orderIndex
         self.peerSlotOrderIndexes = peerSlotOrderIndexes.isEmpty ? [orderIndex] : peerSlotOrderIndexes
+    }
+}
+
+public extension SlotSnapshot {
+    /// The stored step that belongs to `dimension`, so a number entered on one axis is never
+    /// read in another axis's unit.
+    func storedStep(for dimension: ProgressionDimension) -> Double? {
+        dimension == .load ? loadProgressionStep : progressionStep
     }
 }
 

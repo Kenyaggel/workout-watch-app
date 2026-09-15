@@ -14,8 +14,10 @@ import SwiftData
 /// - `PerformedSet.suggested*` — what the Coach proposed for that set, which differs from
 ///   the Target whenever a proposal is still pending review or the lifter overrode it.
 ///   This deviation signal is the only way to tell whether the coach is any good.
-/// - `Exercise.progressionStep` — the Progression Step, in the unit of that exercise's
-///   Progression Dimension. Nil means "use the default for this kind".
+/// - `Exercise.progressionStep` / `loadProgressionStepKg` — the Progression Step. Two
+///   fields, because a `.reps` exercise progresses on load when its slot carries a weight
+///   and on reps when it does not, and a single untyped scalar would be read in whichever
+///   unit the slot happened to imply. Nil means "use the default for that dimension".
 /// - `CoachDecision` — the durable record of what a human decided about a proposal.
 ///   Proposals themselves are recomputed from history rather than stored.
 public enum WorkoutSchemaV3: VersionedSchema {
@@ -42,9 +44,19 @@ public enum WorkoutSchemaV3: VersionedSchema {
         public var defaultTargetReps: Int?
         public var defaultTargetDurationSec: Int?
         public var defaultTargetDistanceM: Double?
-        /// Smallest meaningful increase along this exercise's Progression Dimension, in
-        /// that dimension's own unit. Nil falls back to `ProgressionDimension.defaultStep`.
+        /// Smallest meaningful increase along the exercise's *kind-natural* axis — reps for
+        /// `.reps`, duration for `.timed`, distance for `.distance` — in that axis's own
+        /// unit. Nil falls back to `ProgressionDimension.defaultStep`.
         public var progressionStep: Double?
+
+        /// Smallest meaningful increase in kilograms, used when a Slot carries a target
+        /// weight and therefore progresses on load.
+        ///
+        /// A `.reps` exercise maps to two Progression Dimensions depending on the slot —
+        /// weighted pull-ups progress on load, bodyweight pull-ups on reps — so one untyped
+        /// scalar cannot serve both. Keeping the load step separate is what stops a number
+        /// entered as "3 reps" being read as "3 kg".
+        public var loadProgressionStepKg: Double?
 
         public var kind: ExerciseKind {
             get { ExerciseKind(rawValue: kindRaw) ?? .reps }
@@ -59,7 +71,8 @@ public enum WorkoutSchemaV3: VersionedSchema {
             defaultTargetReps: Int? = nil,
             defaultTargetDurationSec: Int? = nil,
             defaultTargetDistanceM: Double? = nil,
-            progressionStep: Double? = nil
+            progressionStep: Double? = nil,
+            loadProgressionStepKg: Double? = nil
         ) {
             self.id = id
             self.name = name
@@ -69,6 +82,7 @@ public enum WorkoutSchemaV3: VersionedSchema {
             self.defaultTargetDurationSec = defaultTargetDurationSec
             self.defaultTargetDistanceM = defaultTargetDistanceM
             self.progressionStep = progressionStep
+            self.loadProgressionStepKg = loadProgressionStepKg
         }
     }
 

@@ -164,7 +164,9 @@ and they are the rules that shipped:
   Never pool heavy 5s with volume 12s. When a slot has no history (new workout, new exercise),
   fall back to the exercise's best e1RM across all workouts, scaled down to the target rep
   count. `AnalyticsEngine.exerciseAnalytics` already computes Epley e1RM.
-- [x] **Dimension.** Every exercise progresses along exactly one axis, with a step in that axis's
+- [x] **Dimension.** The step is stored per axis (`progressionStep` + `loadProgressionStepKg`),
+  because a reps exercise progresses on load when its slot carries a weight and on reps when it
+  does not. Every exercise progresses along exactly one axis, with a step in that axis's
   unit: `.reps` with a weight → load in kg; `.reps` with no weight → target reps; `.timed` →
   duration; `.distance` → distance. `progressionStep: Double?` goes on `Exercise`, defaulted by
   kind, overridable per exercise. This is what makes Plank and push-ups coachable at all.

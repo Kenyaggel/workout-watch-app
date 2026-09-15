@@ -319,6 +319,7 @@ public enum CoachStore {
             exerciseName: exercise?.name ?? "",
             kind: exercise?.kind,
             progressionStep: exercise?.progressionStep,
+            loadProgressionStep: exercise?.loadProgressionStepKg,
             targets: targets,
             orderIndex: slot.orderIndex,
             peerSlotOrderIndexes: peers

@@ -18,6 +18,7 @@ final class CoachTests: XCTestCase {
     private func slot(
         kind: ExerciseKind? = .reps,
         step: Double? = nil,
+        loadStep: Double? = nil,
         targets: [TargetSnapshot],
         orderIndex: Int = 0,
         peers: [Int] = []
@@ -30,6 +31,7 @@ final class CoachTests: XCTestCase {
             exerciseName: "Bench Press",
             kind: kind,
             progressionStep: step,
+            loadProgressionStep: loadStep,
             targets: targets,
             orderIndex: orderIndex,
             peerSlotOrderIndexes: peers
@@ -519,7 +521,7 @@ final class CoachTests: XCTestCase {
     // MARK: - Sanitization and ceilings
 
     func testAFatFingeredProgressionStepIsRejectedNotClamped() {
-        let out = propose(slot: slot(step: 500, targets: threeByEight), sessions: [metSession(0)])
+        let out = propose(slot: slot(loadStep: 500, targets: threeByEight), sessions: [metSession(0)])
 
         XCTAssertEqual(out.delta, 2.5, "500 falls back to the dimension default, it is not honoured at a bound")
         XCTAssertTrue(out.flags.contains(.stepSanitized))
@@ -527,7 +529,7 @@ final class CoachTests: XCTestCase {
     }
 
     func testAReasonableStepOverrideIsHonoured() {
-        let out = propose(slot: slot(step: 1.25, targets: threeByEight), sessions: [metSession(0)])
+        let out = propose(slot: slot(loadStep: 1.25, targets: threeByEight), sessions: [metSession(0)])
 
         XCTAssertEqual(out.delta, 1.25)
         XCTAssertEqual(out.proposedTargets.map(\.weightKg), [61.25, 61.25, 61.25])
@@ -663,7 +665,7 @@ final class CoachTests: XCTestCase {
             let s = session(day, sets: [
                 perf(0, weight: weight, reps: 8, target: target, plannedSetCount: 1, day: day)
             ])
-            let out = propose(slot: slot(step: 0.3, targets: targets), sessions: [s], asOf: day + 1)
+            let out = propose(slot: slot(loadStep: 0.3, targets: targets), sessions: [s], asOf: day + 1)
             targets = out.proposedTargets
         }
         XCTAssertEqual(targets[0].weightKg, 23.0)
@@ -735,5 +737,52 @@ final class CoachTests: XCTestCase {
         ] {
             XCTAssertFalse(out.reason.isEmpty, "\(out.outcome) must explain itself without a language model")
         }
+    }
+
+    // MARK: - One step per axis
+
+    /// A `.reps` exercise progresses on load when its slot carries a weight and on reps when
+    /// it does not, so the two steps are stored separately. A number entered as reps must
+    /// never be spent as kilograms.
+    func testARepsStepIsNeverReadAsKilograms() {
+        // "3" meaning three reps, on a slot the lifter later loaded with 10 kg.
+        let targets = Array(repeating: TargetSnapshot(weightKg: 10, reps: 5), count: 3)
+        let target = targets[0]
+        let s = session(0, sets: (0..<3).map {
+            perf($0, weight: 10, reps: 5, target: target, plannedSetCount: 3)
+        })
+        let out = propose(slot: slot(step: 3, targets: targets), sessions: [s])
+
+        XCTAssertEqual(out.dimension, .load)
+        XCTAssertEqual(out.delta, 2.5, "the reps step is not applicable to the load axis, so the load default stands")
+        XCTAssertEqual(out.proposedTargets.map(\.weightKg), [12.5, 12.5, 12.5])
+    }
+
+    func testTheSameExerciseUsesItsRepsStepOnABodyweightSlot() {
+        let targets = Array(repeating: TargetSnapshot(reps: 5), count: 3)
+        let target = targets[0]
+        let s = session(0, sets: (0..<3).map {
+            perf($0, reps: 5, target: target, plannedSetCount: 3)
+        })
+        let out = propose(slot: slot(step: 3, loadStep: 1.25, targets: targets), sessions: [s])
+
+        XCTAssertEqual(out.dimension, .reps)
+        XCTAssertEqual(out.delta, 3, "with no weight in play the reps step applies")
+        XCTAssertEqual(out.proposedTargets.map(\.reps), [8, 8, 8])
+    }
+
+    /// The load axis has no integer quantum, so a reps value that the reps axis would reject
+    /// as a typo used to sail through as kilograms. Now it never reaches that axis at all.
+    func testALargeRepsStepCannotBecomeALargeLoadStep() {
+        let targets = Array(repeating: TargetSnapshot(weightKg: 10, reps: 5), count: 3)
+        let target = targets[0]
+        let s = session(0, sets: (0..<3).map {
+            perf($0, weight: 10, reps: 5, target: target, plannedSetCount: 3)
+        })
+        let out = propose(slot: slot(step: 25, targets: targets), sessions: [s])
+
+        XCTAssertEqual(out.delta, 2.5)
+        XCTAssertEqual(out.proposedTargets.map(\.weightKg), [12.5, 12.5, 12.5],
+                       "25 was entered as reps; it must not put 35 kg on the bar")
     }
 }
