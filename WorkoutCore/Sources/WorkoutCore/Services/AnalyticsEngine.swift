@@ -56,8 +56,18 @@ public struct AnalyticsEngine {
     /// progression (max weight + total volume per day) and Epley e1RM (max per day).
     /// Use this instead of calling `exerciseProgression` and `estimated1RM` separately when
     /// you need both — it cuts the fetch and grouping work in half.
+    ///
+    /// Prefer `exerciseAnalytics(id:name:last:)`: matching on Lift Identity survives a
+    /// rename and keeps two same-named exercises apart. This overload matches on name
+    /// alone and is kept for callers that have no id to offer.
     public func exerciseAnalytics(name: String, last sessions: Int) -> ExerciseAnalytics {
-        let bySession = groupedSetsBySession(exerciseName: name, last: sessions)
+        exerciseAnalytics(id: nil, name: name, last: sessions)
+    }
+
+    /// Matches performed history on Lift Identity, falling back to the display name only
+    /// for rows that predate `WorkoutSchemaV3` and could not be backfilled.
+    public func exerciseAnalytics(id: UUID?, name: String, last sessions: Int) -> ExerciseAnalytics {
+        let bySession = groupedSetsBySession(exerciseID: id, exerciseName: name, last: sessions)
 
         let progression = bySession.map { (sessionDate, sessionSets) -> ExerciseDataPoint in
             let maxWeight = sessionSets.compactMap(\.weightKg).max() ?? 0
@@ -82,7 +92,11 @@ public struct AnalyticsEngine {
         )
     }
 
-    private func groupedSetsBySession(exerciseName: String, last sessions: Int) -> [Date: [PerformedSet]] {
+    private func groupedSetsBySession(
+        exerciseID: UUID?,
+        exerciseName: String,
+        last sessions: Int
+    ) -> [Date: [PerformedSet]] {
         let cal = Calendar.current
         let now = Date()
         // Conservative date lower-bound: 60 days per requested session keeps the fetch bounded
@@ -92,18 +106,56 @@ public struct AnalyticsEngine {
             return [:]
         }
 
-        let descriptor = FetchDescriptor<PerformedSet>(
+        // Two narrow fetches rather than one wide one, so the narrowing stays in SQL.
+        // A single `id == x || name == n` predicate degenerates into a full scan whenever
+        // no id is supplied: `exerciseID == nil` is then true of every legacy row of every
+        // exercise, and the Swift-side filter has to throw the store away again.
+        //
+        // They cannot be merged into `id == x || (id == nil && name == n)` either: that
+        // form compiles alone, but adding this fetch's three `&&` clauses pushes the
+        // expression past the type-checker's budget.
+        var sets: [PerformedSet] = []
+        if let exerciseID {
+            let byIdentity = FetchDescriptor<PerformedSet>(
+                predicate: #Predicate {
+                    $0.exerciseID == exerciseID &&
+                    $0.weightKg != nil &&
+                    $0.reps != nil &&
+                    $0.completedAt >= rangeStart
+                }
+            )
+            sets += (try? modelContext.fetch(byIdentity)) ?? []
+        }
+        // Rows that predate V3 and could not be backfilled still match on the name.
+        let byName = FetchDescriptor<PerformedSet>(
             predicate: #Predicate {
+                $0.exerciseID == nil &&
                 $0.exerciseName == exerciseName &&
                 $0.weightKg != nil &&
                 $0.reps != nil &&
                 $0.completedAt >= rangeStart
             }
         )
-        let sets = (try? modelContext.fetch(descriptor)) ?? []
+        sets += (try? modelContext.fetch(byName)) ?? []
 
+        if exerciseID == nil {
+            // No identity to match on, so named rows that *do* carry one are still wanted.
+            let namedWithIdentity = FetchDescriptor<PerformedSet>(
+                predicate: #Predicate {
+                    $0.exerciseName == exerciseName &&
+                    $0.weightKg != nil &&
+                    $0.reps != nil &&
+                    $0.completedAt >= rangeStart
+                }
+            )
+            sets += (try? modelContext.fetch(namedWithIdentity)) ?? []
+        }
+
+        var seen = Swift.Set<UUID>()
         // SwiftData #Predicate cannot express Int? > 0 comparisons — filter in Swift
-        let filtered = sets.filter { ($0.reps ?? 0) > 0 }
+        let filtered = sets
+            .filter { seen.insert($0.id).inserted }
+            .filter { ($0.reps ?? 0) > 0 }
 
         var bySession: [Date: [PerformedSet]] = [:]
         for set in filtered {
@@ -153,4 +205,5 @@ public struct AnalyticsEngine {
     public func estimated1RM(exerciseName: String, last sessions: Int) -> [E1RMDataPoint] {
         exerciseAnalytics(name: exerciseName, last: sessions).e1rm
     }
+
 }

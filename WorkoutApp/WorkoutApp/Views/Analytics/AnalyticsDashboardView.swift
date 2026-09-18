@@ -38,6 +38,7 @@ struct AnalyticsDashboardView: View {
                 PerformedSetVersion(
                     id: $0.id,
                     exerciseName: $0.exerciseName,
+                    exerciseID: $0.exerciseID,
                     weightKg: $0.weightKg,
                     reps: $0.reps,
                     durationSec: $0.durationSec,
@@ -273,14 +274,15 @@ struct AnalyticsDashboardView: View {
     }
 
     private func refreshExerciseAnalytics() {
-        guard let name = selectedExercise?.name else {
+        guard let exercise = selectedExercise else {
             progressionPoints = []
             e1rmPoints = []
             return
         }
 
+        // Match on Lift Identity so a rename doesn't split this lift's history in two.
         let analytics = AnalyticsEngine(modelContext: modelContext)
-            .exerciseAnalytics(name: name, last: 20)
+            .exerciseAnalytics(id: exercise.id, name: exercise.name, last: 20)
         progressionPoints = analytics.progression
         e1rmPoints = analytics.e1rm
     }
@@ -306,6 +308,7 @@ private struct SessionVersion: Equatable {
 private struct PerformedSetVersion: Equatable {
     let id: UUID
     let exerciseName: String
+    let exerciseID: UUID?
     let weightKg: Double?
     let reps: Int?
     let durationSec: Int?
@@ -319,7 +322,7 @@ private struct PerformedSetVersion: Equatable {
     }
     .modelContainer(
         try! ModelContainer(
-            for: Schema(versionedSchema: WorkoutSchemaV2.self),
+            for: Schema(versionedSchema: WorkoutSchemaV3.self),
             configurations: [ModelConfiguration(isStoredInMemoryOnly: true)]
         )
     )

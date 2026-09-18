@@ -47,7 +47,7 @@ Use Xcode for normal device/simulator runs, especially watch workflows. CLI iPho
 
 Three layers, deliberately separated:
 
-1. **SwiftData models** (`WorkoutCore/Sources/WorkoutCore/Models/`). Templates, exercises, sessions, performed sets. Inheritance is avoided — `Exercise` carries a `kindRaw: String` plus a computed `kind: ExerciseKind` and nullable kind-specific fields. Schema is versioned: every `@Model` class is nested inside both `WorkoutSchemaV1` (`SchemaV1.swift`) and `WorkoutSchemaV2` (`SchemaV2.swift`); module-level typealiases (`PlannedSet = WorkoutSchemaV2.PlannedSet`, etc.) keep consumer code unchanged. `WorkoutMigrationPlan` in `Schema.swift` carries a custom V1→V2 stage that lifts per-set `restOverrideSec` onto `PlannedExercise.restSec`.
+1. **SwiftData models** (`WorkoutCore/Sources/WorkoutCore/Models/`). Templates, exercises, sessions, performed sets. Inheritance is avoided — `Exercise` carries a `kindRaw: String` plus a computed `kind: ExerciseKind` and nullable kind-specific fields. Schema is versioned: every `@Model` class is nested inside `WorkoutSchemaV1` (`SchemaV1.swift`), `WorkoutSchemaV2` (`SchemaV2.swift`) and `WorkoutSchemaV3` (`SchemaV3.swift`); module-level typealiases (`PlannedSet = WorkoutSchemaV3.PlannedSet`, etc.) live in `SchemaV3.swift` and keep consumer code unchanged. `WorkoutMigrationPlan` in `Schema.swift` carries a custom V1→V2 stage that lifts per-set `restOverrideSec` onto `PlannedExercise.restSec`, and a custom V2→V3 stage that backfills `PerformedSet.exerciseID`.
 
 2. **SessionEngine** (`Services/SessionEngine.swift`). `@MainActor @Observable` finite state machine: `.idle → .inSet → .rest → .inSet | .prep → ... → .complete`. The engine takes a **`SessionPlan`** (immutable value type) as input — this snapshot decouples the engine from SwiftData so it can be unit-tested in pure Swift with a fake `nowProvider`. Persistence and HealthKit are injected via protocols (`SessionRecorder`, `Haptics`).
 
@@ -68,8 +68,44 @@ Three layers, deliberately separated:
 ### SwiftData migration notes
 
 - This app has real on-device stores. New `@Model` attributes must be migration-safe: optional with a computed resolved value, explicitly migrated, or backfilled before they become required.
-- The schema is currently at `WorkoutSchemaV2`. The V1→V2 migration is a custom stage that captures `PlannedSet.restOverrideSec` in `willMigrate` and writes it onto `PlannedExercise.restSec` in `didMigrate`. Never mutate `WorkoutSchemaV1` in place — frozen as the on-disk shape for users updating from the previous build.
-- For the next schema-breaking change, add `WorkoutSchemaV3` with its own nested `@Model` types, append a stage to `WorkoutMigrationPlan.stages`, and point the module-level typealiases at V3. `MigrationTests` is the template for verifying it on a real file-backed store.
+- The schema is currently at `WorkoutSchemaV3`. V1→V2 is a custom stage that captures `PlannedSet.restOverrideSec` in `willMigrate` and writes it onto `PlannedExercise.restSec` in `didMigrate`. V2→V3 is custom too, but with `willMigrate: nil` — every attribute it adds is optional and `CoachDecision` is a new entity, so the diff migrates lightly and the stage exists only to run the identity backfill. It needs no stash because nothing is removed: `didMigrate` can read `PerformedSet.exerciseName` and `Exercise.id`/`name` on both sides.
+- Never mutate `WorkoutSchemaV1` or `WorkoutSchemaV2` in place — both are frozen as on-disk shapes for users updating from an older build. **`WorkoutSchemaV3` freezes the moment this branch ships.** While it is unshipped, editing it is free but invalidates every development store: adding a field without bumping `versionIdentifier` changes the model hash, and SwiftData then fails with *"Cannot use staged migration with an unknown model version."* and `loadIssueModelContainer`. During development that means deleting the app from the simulator; after shipping it would mean a user losing their store, so it must become a V4 instead.
+- For the next schema-breaking change, add `WorkoutSchemaV4` with its own nested `@Model` types, append a stage to `WorkoutMigrationPlan.stages`, and point the module-level typealiases at V4. `MigrationTests` is the template for verifying it on a real file-backed store — including a case that opens a V1-era store at the current schema, so the whole chain stays exercised.
+
+### Lift identity in performed history
+
+- `PerformedSet.exerciseID` is the matching key for a lift's history, not `exerciseName`. See `CONTEXT.md` for the vocabulary and `docs/adr/0001-exercise-identity-in-performed-history.md` for the decision.
+- `exerciseName` stays deliberately: it records what the exercise was called at the time, and covers exercises later deleted from the library. It is the fallback for rows with no identity.
+- Identity resolves by name in exactly two places — the V2→V3 migration and `SessionSyncImporter`, for sets arriving from a watch on the previous build. Both use the same rule: trimmed and case-folded, and **a name shared by two exercises resolves to neither**. Never guess between them.
+- `AnalyticsEngine.exerciseAnalytics(id:name:last:)` is the identity-aware entry point; the `name:`-only overload remains for callers with no id. A row carrying a *different* id is excluded even when the names match.
+- `PerformedSet.target*` records the target in effect when the set ran. Read it, not the workout's current `PlannedSet`, anywhere you show planned-vs-done for a past session — the coach moves a workout's targets over time.
+
+### The progression coach
+
+- `WorkoutCore/Coach/` holds it. `Coach.propose(CoachInput) -> CoachOutput` is **pure and
+  total**: no clock, no SwiftData, a value for every input. `asOf` is injected the way
+  `SessionEngine` injects `nowProvider`. Keep it that way — every rule belongs in `Coach`, and
+  `CoachStore` stays a thin SwiftData shell that only reads, hands over value types, and writes
+  back.
+- Sessions are passed in **unscoped**. Slot scoping, occurrence matching and the cross-workout
+  e1RM scan happen inside the pure function so the intricate part stays under test.
+- **Proposals are recomputed, never stored.** `CoachDecision` persists the lifter's decision,
+  keyed by content fingerprint plus source session. The fingerprint is a string, never
+  `hashValue` — Swift's `Hasher` is seeded per process, so a persisted hash stops matching
+  after a relaunch.
+- **Only the phone writes targets.** Template sync is phone → watch and the watch replaces its
+  local copy, so a watch-side write would be clobbered.
+- Scope for lookup is the `(workout, exercise)` pair; identity is the exercise UUID.
+  `exerciseIndex` is never a matching key — it only separates two occurrences of one exercise
+  within a single session.
+- **The Progression Step is stored per axis, not per exercise.** `Exercise.progressionStep`
+  holds the step on the kind-natural axis (reps / duration / distance); `loadProgressionStepKg`
+  holds it in kilograms. A `.reps` exercise maps to *two* dimensions depending on the slot —
+  weighted pull-ups progress on load, bodyweight pull-ups on reps — so one untyped scalar would
+  be read in whichever unit the slot implied, and a "3" meaning three reps would put 3 kg on the
+  bar. Read them through `SlotSnapshot.storedStep(for:)`, never directly.
+- Every new rule needs a case in `CoachTests`, and anything affecting the long run needs one in
+  `CoachBacktestTests`, which replays a simulated lifter over 120 sessions.
 
 ### Recorder/HealthKit decoupling
 

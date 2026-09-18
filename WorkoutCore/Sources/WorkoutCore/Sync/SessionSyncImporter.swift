@@ -2,11 +2,13 @@ import Foundation
 import SwiftData
 
 public enum SessionSyncImporter {
+    /// Returns the stored session so the caller can run the Coach over it.
+    @discardableResult
     @MainActor
     public static func upsert(
         _ snapshot: SessionSyncSnapshot,
         in context: ModelContext
-    ) throws {
+    ) throws -> WorkoutSession {
         let dto = snapshot.session
         let existingSession = try session(matching: dto.id, in: context)
         let workoutSession: WorkoutSession
@@ -36,11 +38,14 @@ public enum SessionSyncImporter {
         }
         try context.save()
 
+        let exerciseIDs = try unambiguousExerciseIDsByName(in: context)
+
         for setDTO in dto.performedSets {
             let performedSet = PerformedSet(
                 id: setDTO.id,
                 orderIndex: setDTO.orderIndex,
                 exerciseName: setDTO.exerciseName,
+                exerciseID: setDTO.exerciseID ?? exerciseIDs[normalizedName(setDTO.exerciseName)],
                 exerciseIndex: setDTO.exerciseIndex,
                 setIndex: setDTO.setIndex,
                 weightKg: setDTO.weightKg,
@@ -48,13 +53,48 @@ public enum SessionSyncImporter {
                 durationSec: setDTO.durationSec,
                 distanceM: setDTO.distanceM,
                 rpe: setDTO.rpe,
-                completedAt: setDTO.completedAt
+                completedAt: setDTO.completedAt,
+                plannedSetCount: setDTO.plannedSetCount,
+                targetWeightKg: setDTO.targetWeightKg,
+                targetReps: setDTO.targetReps,
+                targetDurationSec: setDTO.targetDurationSec,
+                targetDistanceM: setDTO.targetDistanceM
             )
             performedSet.session = workoutSession
             context.insert(performedSet)
         }
 
         try context.save()
+        return workoutSession
+    }
+
+    /// Names that map to exactly one library `Exercise`. A name shared by two exercises
+    /// is deliberately absent: guessing between them would invent a Lift Identity that is
+    /// wrong, and a null identity falls back to name matching, which is no worse than the
+    /// behaviour this replaces.
+    @MainActor
+    private static func unambiguousExerciseIDsByName(
+        in context: ModelContext
+    ) throws -> [String: UUID] {
+        let exercises = try context.fetch(FetchDescriptor<Exercise>())
+        var byName: [String: UUID] = [:]
+        var ambiguous: Swift.Set<String> = []
+        for exercise in exercises {
+            let key = normalizedName(exercise.name)
+            if byName[key] != nil {
+                ambiguous.insert(key)
+            } else {
+                byName[key] = exercise.id
+            }
+        }
+        for name in ambiguous {
+            byName.removeValue(forKey: name)
+        }
+        return byName
+    }
+
+    private static func normalizedName(_ name: String) -> String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
     @MainActor

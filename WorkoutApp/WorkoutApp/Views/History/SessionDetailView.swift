@@ -139,6 +139,18 @@ private struct SetRowView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+
+            if let coachDeviationText {
+                HStack {
+                    Text("Coach")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .frame(width: 48, alignment: .leading)
+                    Text(coachDeviationText)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
         .padding(.vertical, 2)
     }
@@ -160,32 +172,73 @@ private struct SetRowView: View {
         return parts.isEmpty ? "—" : parts.joined(separator: " · ")
     }
 
+    /// Prefers the Target recorded on the set itself. Reading the workout's current
+    /// `PlannedSet` instead would be wrong: the Coach moves a workout's targets over time,
+    /// so a session from six weeks ago would re-render its plan against today's numbers and
+    /// quietly show a lifter that they hit targets they never had. The live template is
+    /// consulted only for sets performed before V3, which carry no recorded target.
     private var plannedText: String {
+        if let text = targetText(
+            weightKg: set.targetWeightKg,
+            reps: set.targetReps,
+            durationSec: set.targetDurationSec,
+            distanceM: set.targetDistanceM
+        ) {
+            return text
+        }
+
         guard let template = session.template else { return "—" }
         let exercises = template.orderedExercises
         guard let plannedExercise = exercises[safe: set.exerciseIndex] else { return "—" }
         guard let plannedSet = plannedExercise.orderedSets[safe: set.setIndex] else { return "—" }
 
-        var parts: [String] = []
-        if let weight = plannedSet.targetWeightKg {
-            parts.append(String(format: "%.1f kg", weight))
-        }
-        if let reps = plannedSet.targetReps {
-            parts.append("\(reps) reps")
-        }
-        if let duration = plannedSet.targetDurationSec {
-            parts.append(formatSeconds(duration))
-        }
-        if let distance = plannedSet.targetDistanceM {
-            parts.append(String(format: "%.0f m", distance))
-        }
-        return parts.isEmpty ? "—" : parts.joined(separator: " · ")
+        return targetText(
+            weightKg: plannedSet.targetWeightKg,
+            reps: plannedSet.targetReps,
+            durationSec: plannedSet.targetDurationSec,
+            distanceM: plannedSet.targetDistanceM
+        ) ?? "—"
     }
 
-    private func formatSeconds(_ seconds: Int) -> String {
-        if seconds < 60 { return "\(seconds)s" }
-        let m = seconds / 60
-        let s = seconds % 60
-        return s == 0 ? "\(m)m" : "\(m)m \(s)s"
+    /// Nil when nothing was targeted at all, which is what lets `plannedText` tell "no
+    /// recorded target" apart from "a target of nothing".
+    private func targetText(
+        weightKg: Double?,
+        reps: Int?,
+        durationSec: Int?,
+        distanceM: Double?
+    ) -> String? {
+        var parts: [String] = []
+        if let weightKg {
+            parts.append(String(format: "%.1f kg", weightKg))
+        }
+        if let reps {
+            parts.append("\(reps) reps")
+        }
+        if let durationSec {
+            parts.append(formatSeconds(durationSec))
+        }
+        if let distanceM {
+            parts.append(String(format: "%.0f m", distanceM))
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    /// What the Coach proposed for this set, shown only when it differs from the Target
+    /// that was actually run — that gap is the signal for whether the coach is any good.
+    private var coachDeviationText: String? {
+        guard let suggested = targetText(
+            weightKg: set.suggestedWeightKg,
+            reps: set.suggestedReps,
+            durationSec: set.suggestedDurationSec,
+            distanceM: set.suggestedDistanceM
+        ) else { return nil }
+        let ran = targetText(
+            weightKg: set.targetWeightKg,
+            reps: set.targetReps,
+            durationSec: set.targetDurationSec,
+            distanceM: set.targetDistanceM
+        )
+        return suggested == ran ? nil : suggested
     }
 }

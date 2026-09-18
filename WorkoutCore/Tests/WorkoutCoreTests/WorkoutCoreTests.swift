@@ -390,4 +390,84 @@ final class SessionEngineTests: XCTestCase {
 
         XCTAssertEqual(plannedExercise.resolvedRestSec, 90)
     }
+
+    // MARK: - Lift Identity and the Target in effect
+
+    func testCompletedSetCarriesLiftIdentityAndTheTargetItWasRunAgainst() {
+        var t = Date(timeIntervalSince1970: 0)
+        let benchID = UUID()
+        let plan = SessionPlan(
+            templateName: "Push",
+            exercises: [
+                .init(name: "Bench Press", exerciseID: benchID, kind: .reps, sets: [
+                    .init(targetWeightKg: 80, targetReps: 8, restSec: 120)
+                ])
+            ]
+        )
+        let (engine, rec) = makeEngine(plan: plan) { t }
+
+        engine.start()
+        engine.startNextExercise()
+        t = t.addingTimeInterval(40)
+        // Ran heavier and shorter than planned.
+        engine.completeSet(weightKg: 82.5, reps: 7, rpe: 9)
+
+        let entry = try? XCTUnwrap(rec.entries.first)
+        XCTAssertEqual(entry?.exerciseID, benchID)
+        XCTAssertEqual(entry?.exerciseName, "Bench Press")
+        XCTAssertEqual(entry?.weightKg, 82.5)
+        XCTAssertEqual(entry?.reps, 7)
+        XCTAssertEqual(entry?.targetWeightKg, 80)
+        XCTAssertEqual(entry?.targetReps, 8)
+    }
+
+    func testTemplatePlanCarriesTheLibraryExerciseIdentity() {
+        let benchID = UUID()
+        let exercise = Exercise(id: benchID, name: "Bench Press", kind: .reps, defaultRestSec: 120)
+        let template = WorkoutTemplate(name: "Push")
+        let pe = PlannedExercise(orderIndex: 0, exercise: exercise, restSec: 120)
+        pe.template = template
+        let set = PlannedSet(orderIndex: 0, targetWeightKg: 80, targetReps: 8)
+        set.plannedExercise = pe
+        pe.sets = [set]
+        template.plannedExercises = [pe]
+
+        let plan = SessionPlan.from(template: template)
+        XCTAssertEqual(plan.exercises.first?.exerciseID, benchID)
+    }
+
+    func testSwiftDataRecorderPersistsIdentityAndTargetOntoThePerformedSet() throws {
+        let container = try WorkoutModelContainer.makeShared(inMemory: true)
+        let context = ModelContext(container)
+        let recorder = SwiftDataRecorder(context: context)
+
+        let benchID = UUID()
+        var t = Date(timeIntervalSince1970: 0)
+        let plan = SessionPlan(
+            templateName: "Push",
+            exercises: [
+                .init(name: "Bench Press", exerciseID: benchID, kind: .reps, sets: [
+                    .init(targetWeightKg: 80, targetReps: 8, restSec: 120)
+                ])
+            ]
+        )
+        let engine = SessionEngine(
+            plan: plan,
+            recorder: recorder,
+            haptics: NoopHaptics(),
+            nowProvider: { t }
+        )
+
+        engine.start()
+        engine.startNextExercise()
+        t = t.addingTimeInterval(40)
+        engine.completeSet(weightKg: 80, reps: 8, rpe: 7)
+
+        let stored = try XCTUnwrap(try context.fetch(FetchDescriptor<PerformedSet>()).first)
+        XCTAssertEqual(stored.exerciseID, benchID)
+        XCTAssertEqual(stored.targetWeightKg, 80)
+        XCTAssertEqual(stored.targetReps, 8)
+        XCTAssertNil(stored.suggestedWeightKg,
+                     "the watch never stamps a Coach proposal — that happens on the phone")
+    }
 }

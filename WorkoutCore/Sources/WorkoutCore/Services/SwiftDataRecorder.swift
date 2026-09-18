@@ -32,6 +32,7 @@ public final class SwiftDataRecorder: SessionRecorder {
         let performed = PerformedSet(
             orderIndex: orderCounter,
             exerciseName: entry.exerciseName,
+            exerciseID: entry.exerciseID,
             exerciseIndex: entry.cursor.exerciseIndex,
             setIndex: entry.cursor.setIndex,
             weightKg: entry.weightKg,
@@ -39,7 +40,12 @@ public final class SwiftDataRecorder: SessionRecorder {
             durationSec: entry.durationSec,
             distanceM: entry.distanceM,
             rpe: entry.rpe,
-            completedAt: entry.completedAt
+            completedAt: entry.completedAt,
+            plannedSetCount: entry.plannedSetCount,
+            targetWeightKg: entry.targetWeightKg,
+            targetReps: entry.targetReps,
+            targetDurationSec: entry.targetDurationSec,
+            targetDistanceM: entry.targetDistanceM
         )
         performed.session = session
         context.insert(performed)

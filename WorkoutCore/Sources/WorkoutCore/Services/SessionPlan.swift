@@ -3,11 +3,16 @@ import Foundation
 public struct SessionPlan: Equatable, Hashable, Identifiable, Sendable {
     public struct Exercise: Equatable, Hashable, Sendable {
         public let name: String
+        /// Lift Identity — the stable id of the library `Exercise` this came from.
+        /// Optional because a plan can be built without one (previews, tests, and any
+        /// slot whose exercise has been deleted).
+        public let exerciseID: UUID?
         public let kind: ExerciseKind
         public let sets: [Set]
 
-        public init(name: String, kind: ExerciseKind, sets: [Set]) {
+        public init(name: String, exerciseID: UUID? = nil, kind: ExerciseKind, sets: [Set]) {
             self.name = name
+            self.exerciseID = exerciseID
             self.kind = kind
             self.sets = sets
         }

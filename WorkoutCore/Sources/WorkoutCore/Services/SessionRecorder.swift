@@ -3,6 +3,9 @@ import Foundation
 public struct CompletedSetEntry: Sendable {
     public let cursor: SetCursor
     public let exerciseName: String
+    /// Lift Identity, carried from the plan so performed history matches on the
+    /// exercise's stable id rather than its display name.
+    public let exerciseID: UUID?
     public let weightKg: Double?
     public let reps: Int?
     public let durationSec: Int?
@@ -10,24 +13,46 @@ public struct CompletedSetEntry: Sendable {
     public let rpe: Int?
     public let completedAt: Date
 
+    /// The Target that was in effect for this set. Recorded alongside the actuals
+    /// because the Coach moves a workout's targets over time — without it, a past
+    /// Session's planned-vs-done would re-render against today's numbers.
+    /// How many sets the Slot planned for this exercise in this session.
+    public let plannedSetCount: Int?
+    public let targetWeightKg: Double?
+    public let targetReps: Int?
+    public let targetDurationSec: Int?
+    public let targetDistanceM: Double?
+
     public init(
         cursor: SetCursor,
         exerciseName: String,
+        exerciseID: UUID? = nil,
         weightKg: Double?,
         reps: Int?,
         durationSec: Int?,
         distanceM: Double?,
         rpe: Int?,
-        completedAt: Date
+        completedAt: Date,
+        plannedSetCount: Int? = nil,
+        targetWeightKg: Double? = nil,
+        targetReps: Int? = nil,
+        targetDurationSec: Int? = nil,
+        targetDistanceM: Double? = nil
     ) {
         self.cursor = cursor
         self.exerciseName = exerciseName
+        self.exerciseID = exerciseID
         self.weightKg = weightKg
         self.reps = reps
         self.durationSec = durationSec
         self.distanceM = distanceM
         self.rpe = rpe
         self.completedAt = completedAt
+        self.plannedSetCount = plannedSetCount
+        self.targetWeightKg = targetWeightKg
+        self.targetReps = targetReps
+        self.targetDurationSec = targetDurationSec
+        self.targetDistanceM = targetDistanceM
     }
 }
 

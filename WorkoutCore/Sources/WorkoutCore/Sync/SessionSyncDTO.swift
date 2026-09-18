@@ -53,10 +53,16 @@ public struct WorkoutSessionSyncDTO: Codable, Equatable, Sendable {
     }
 }
 
+/// Every field added after the first shipped version is `Optional`, so the synthesized
+/// `Codable` conformance decodes them with `decodeIfPresent`. A watch still running the
+/// previous build therefore syncs cleanly to a phone on this one — the new keys simply
+/// arrive nil.
 public struct PerformedSetSyncDTO: Codable, Equatable, Sendable {
     public var id: UUID
     public var orderIndex: Int
     public var exerciseName: String
+    /// Lift Identity. Nil from a watch that predates V3.
+    public var exerciseID: UUID?
     public var exerciseIndex: Int
     public var setIndex: Int
     public var weightKg: Double?
@@ -66,10 +72,20 @@ public struct PerformedSetSyncDTO: Codable, Equatable, Sendable {
     public var rpe: Int?
     public var completedAt: Date
 
+    /// How many sets the Slot planned when this set was run.
+    public var plannedSetCount: Int?
+
+    /// The Target in effect on the watch when this set was performed.
+    public var targetWeightKg: Double?
+    public var targetReps: Int?
+    public var targetDurationSec: Int?
+    public var targetDistanceM: Double?
+
     public init(
         id: UUID,
         orderIndex: Int,
         exerciseName: String,
+        exerciseID: UUID? = nil,
         exerciseIndex: Int,
         setIndex: Int,
         weightKg: Double?,
@@ -77,11 +93,17 @@ public struct PerformedSetSyncDTO: Codable, Equatable, Sendable {
         durationSec: Int?,
         distanceM: Double?,
         rpe: Int?,
-        completedAt: Date
+        completedAt: Date,
+        plannedSetCount: Int? = nil,
+        targetWeightKg: Double? = nil,
+        targetReps: Int? = nil,
+        targetDurationSec: Int? = nil,
+        targetDistanceM: Double? = nil
     ) {
         self.id = id
         self.orderIndex = orderIndex
         self.exerciseName = exerciseName
+        self.exerciseID = exerciseID
         self.exerciseIndex = exerciseIndex
         self.setIndex = setIndex
         self.weightKg = weightKg
@@ -90,6 +112,11 @@ public struct PerformedSetSyncDTO: Codable, Equatable, Sendable {
         self.distanceM = distanceM
         self.rpe = rpe
         self.completedAt = completedAt
+        self.plannedSetCount = plannedSetCount
+        self.targetWeightKg = targetWeightKg
+        self.targetReps = targetReps
+        self.targetDurationSec = targetDurationSec
+        self.targetDistanceM = targetDistanceM
     }
 
     public init(performedSet: PerformedSet) {
@@ -97,6 +124,7 @@ public struct PerformedSetSyncDTO: Codable, Equatable, Sendable {
             id: performedSet.id,
             orderIndex: performedSet.orderIndex,
             exerciseName: performedSet.exerciseName,
+            exerciseID: performedSet.exerciseID,
             exerciseIndex: performedSet.exerciseIndex,
             setIndex: performedSet.setIndex,
             weightKg: performedSet.weightKg,
@@ -104,7 +132,12 @@ public struct PerformedSetSyncDTO: Codable, Equatable, Sendable {
             durationSec: performedSet.durationSec,
             distanceM: performedSet.distanceM,
             rpe: performedSet.rpe,
-            completedAt: performedSet.completedAt
+            completedAt: performedSet.completedAt,
+            plannedSetCount: performedSet.plannedSetCount,
+            targetWeightKg: performedSet.targetWeightKg,
+            targetReps: performedSet.targetReps,
+            targetDurationSec: performedSet.targetDurationSec,
+            targetDistanceM: performedSet.targetDistanceM
         )
     }
 }
